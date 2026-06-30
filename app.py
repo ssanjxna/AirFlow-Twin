@@ -8,6 +8,9 @@ from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 
+from database.db import get_connection
+from database.audit import log_user_action, log_audit, log_model_run
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -202,6 +205,105 @@ def get_parking_status():
         'is_peak_hour': bool(is_peak)
     })
 
+@app.route('/api/audit_logs')
+def get_audit_logs():
+    """Return recent audit log entries."""
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100")
+    rows = cursor.fetchall()
+    conn.close()
+
+    return jsonify([dict(row) for row in rows])
+
+
+def find_flight_by_id(flight_id):
+    flights = data_loader.get_current_flights(limit=100)
+    for flight in flights:
+        if str(flight.get('id')) == str(flight_id) or str(flight.get('flight_id')) == str(flight_id):
+            return flight
+    return None
+
+
+@app.route('/api/get_recommendation/<flight_id>')
+def api_get_recommendation(flight_id):
+    flight = find_flight_by_id(flight_id)
+    if not flight:
+        return jsonify({'error': 'Flight not found'}), 404
+
+    recommendation = generate_ai_recommendation(flight)
+    log_user_action('demo_user', 'AI_RECOMMENDATION', f'Generated AI recommendation for flight {flight_id}')
+    log_model_run('gemini_recommendation', f'flight_id={flight_id}', str(recommendation), 'success')
+    log_audit('model_runs', str(flight_id), 'AI_RECOMMENDATION', None, f'Generated AI recommendation for flight {flight_id}', 'demo_user')
+
+    return jsonify({
+        'flight_id': flight_id,
+        'flight_data': flight,
+        'risk': flight.get('risk', 0),
+        'recommendation': recommendation
+    })
+
+
+@app.route('/api/apply_recommendation/<flight_id>', methods=['POST'])
+def api_apply_recommendation(flight_id):
+    flight = find_flight_by_id(flight_id)
+    if not flight:
+        return jsonify({'error': 'Flight not found'}), 404
+
+    risk_reduction = random.randint(5, 12)
+    delay_prevented = random.randint(5, 20)
+
+    log_user_action('demo_user', 'APPLY_RECOMMENDATION', f'Applied recommendation for flight {flight_id}')
+    log_audit(
+        'recommendations',
+        str(flight_id),
+        'UPDATE',
+        None,
+        f'Applied recommendation for flight {flight_id}, risk reduced by {risk_reduction}%',
+        'demo_user'
+    )
+    log_model_run(
+        'recommendation_application',
+        f'flight_id={flight_id}',
+        f'risk_reduction={risk_reduction}, delay_prevented={delay_prevented}',
+        'success'
+    )
+
+    return jsonify({
+        'risk_reduction': risk_reduction,
+        'delay_prevented': delay_prevented
+    })
+
+
+@app.route('/api/simulate_future', methods=['POST'])
+def api_simulate_future():
+    payload = request.get_json(silent=True) or {}
+    minutes = int(payload.get('minutes', 0))
+
+    flights = data_loader.get_current_flights(limit=15)
+    metrics = {
+        'flights_delayed_before': 0,
+        'flights_delayed_after': 0,
+        'total_delay_before': 0,
+        'total_delay_after': 0
+    }
+
+    for flight in flights:
+        base_risk = get_ai_risk_score(flight)
+        flight['risk'] = max(0, min(100, base_risk + random.randint(-4, 4)))
+        metrics['total_delay_before'] += flight.get('delay_minutes', 0)
+        metrics['total_delay_after'] += max(0, flight.get('delay_minutes', 0) - int(minutes / 5))
+        if flight.get('delay_minutes', 0) > 0:
+            metrics['flights_delayed_before'] += 1
+        if max(0, flight.get('delay_minutes', 0) - int(minutes / 5)) > 0:
+            metrics['flights_delayed_after'] += 1
+
+    log_user_action('demo_user', 'SIMULATE_FUTURE', f'Simulated future airport state +{minutes} minutes')
+    log_model_run('future_simulation', f'minutes={minutes}', f'metrics={metrics}', 'success')
+    log_audit('simulation_logs', 'N/A', 'RUN_SIMULATION', None, f'Simulated future for +{minutes} minutes', 'demo_user')
+
+    return jsonify({'flights': flights, 'metrics': metrics})
 
 
 # ============================================================================
