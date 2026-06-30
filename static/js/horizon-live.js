@@ -21,7 +21,7 @@ async function initHorizonLivePage() {
 async function loadHorizonLiveData() {
     try {
         const [flightsResponse, parkingResponse] = await Promise.all([
-            fetch('/api/flights?limit=24'),
+            fetch('/api/flights'),
             fetch('/api/parking_status'),
         ]);
         const flightsData = await flightsResponse.json();

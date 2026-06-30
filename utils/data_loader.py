@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 from datetime import datetime, timedelta
+from database.db import get_connection
 
 class AirportDataLoader:
     def __init__(self, data_dir='data'):
@@ -118,6 +119,22 @@ class AirportDataLoader:
         self.passengers_df = self._read_dataset('passengers.csv')
         if self.passengers_df is not None:
             print(f"Loaded {len(self.passengers_df)} passenger records")
+    
+    def get_total_flights_count(self):
+        """Get the total count of flights from the database flights table"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) as count FROM flights")
+            result = cursor.fetchone()
+            conn.close()
+            
+            count = result[0] if result else 0
+            return max(1, count)
+        except Exception as e:
+            print(f"Error getting flight count from database: {e}")
+            # Fallback to CSV count if database query fails
+            return max(1, len(self.flights_df)) if self.flights_df is not None else 1
     
     def get_current_flights(self, limit=15):
         if self.flights_df is None:

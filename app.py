@@ -25,7 +25,8 @@ from utils.data_loader import AirportDataLoader
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 MODELS_DIR = BASE_DIR / "models"
-TRACKED_FLIGHT_LIMIT = 24
+# TRACKED_FLIGHT_LIMIT is now dynamic - computed from database at runtime
+TRACKED_FLIGHT_LIMIT = None
 
 
 def _log(message):
@@ -95,6 +96,11 @@ def initialize_runtime():
         _log(f"WARNING: Could not load parking artifact: {exc}")
 
     runtime_initialized = True
+
+
+def get_dynamic_flight_limit():
+    """Get the current number of flights in the database"""
+    return max(1, data_loader.get_total_flights_count())
 
 
 if not _is_werkzeug_reloader_parent():
@@ -461,9 +467,12 @@ def calibrate():
 def get_flights():
     """Get current flight data with AI-calculated risk scores"""
     initialize_runtime()
-    limit = request.args.get('limit', default=TRACKED_FLIGHT_LIMIT, type=int)
-    if limit is not None:
-        limit = max(1, min(limit, 100))
+    # Get all flights from database by default (no limit)
+    limit = request.args.get('limit', default=None, type=int)
+    if limit is None:
+        limit = get_dynamic_flight_limit()
+    else:
+        limit = max(1, min(limit, 1000))  # Cap at 1000 max
 
     flights = data_loader.get_current_flights(limit=limit)
     resources = data_loader.get_resource_status()
@@ -562,7 +571,7 @@ def apply_flight_recommendations(flight_id):
 @app.route('/api/impact_summary')
 def get_impact_summary_data():
     initialize_runtime()
-    tracked_flights = data_loader.get_current_flights(limit=TRACKED_FLIGHT_LIMIT)
+    tracked_flights = data_loader.get_current_flights(limit=get_dynamic_flight_limit())
     for flight in tracked_flights:
         enriched, _ = _enrich_flight(flight)
         sync_flight_state(enriched)
@@ -585,7 +594,7 @@ def get_parking_status():
     current_hour = datetime.now().hour
     current_day = datetime.now().strftime('%A')
     day_type = 'weekend' if current_day in ['Saturday', 'Sunday'] else 'weekday'
-    tracked_flights = data_loader.get_current_flights(limit=TRACKED_FLIGHT_LIMIT)
+    tracked_flights = data_loader.get_current_flights(limit=get_dynamic_flight_limit())
     average_delay = round(
         sum(_safe_int(flight.get('delay_minutes'), 0) for flight in tracked_flights) / max(len(tracked_flights), 1),
         1,
@@ -629,7 +638,7 @@ def simulation_loop():
     initialize_runtime()
 
     while True:
-        flights = data_loader.get_current_flights(limit=15)
+        flights = data_loader.get_current_flights(limit=get_dynamic_flight_limit())
         
         # Add random fluctuations to risk scores
         for flight in flights:

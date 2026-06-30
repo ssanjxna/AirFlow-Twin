@@ -22,7 +22,7 @@ async function initDashboardLive() {
 async function loadDashboardLiveData() {
     try {
         const [flightsResponse, parkingResponse] = await Promise.all([
-            fetch('/api/flights?limit=24'),
+            fetch('/api/flights'),
             fetch('/api/parking_status'),
         ]);
         const flightsData = await flightsResponse.json();

@@ -38,7 +38,7 @@ function applyHeaderSummary(summary) {
 
 async function refreshShellMetrics() {
     try {
-        const response = await fetch('/api/flights?limit=24');
+        const response = await fetch('/api/flights');
         const data = await response.json();
         applyHeaderSummary(data.summary);
     } catch (error) {
