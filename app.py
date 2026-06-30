@@ -6,6 +6,16 @@ from flask import Flask, jsonify, render_template, request
 from flask_socketio import SocketIO
 from dotenv import load_dotenv
 from backend.airport_state_builder import build_airport_state
+from database.operational_state import (
+    apply_recommendations,
+    ensure_operational_tables,
+    ensure_recommendation_actions,
+    get_audit_feed,
+    get_flight_analysis_state,
+    get_impact_summary,
+    overlay_persisted_state,
+    sync_flight_state,
+)
 from gemini_orchestrator import get_gemini_recommendation
 from loaders.backend_loader_delay_predictor import load_artifact as load_delay_artifact
 from loaders.backend_loader_delay_predictor import predict_delay
@@ -48,6 +58,8 @@ def initialize_runtime():
 
     if runtime_initialized:
         return
+
+    ensure_operational_tables()
 
     try:
         import google.generativeai as genai
@@ -353,8 +365,8 @@ def _enrich_flight(flight):
 def _summarize_flights(flights):
     high_risk_count = sum(1 for flight in flights if flight["risk"] >= 80)
     total_predicted_delay_minutes = sum(_safe_int(flight.get("predicted_delay_minutes"), 0) for flight in flights)
-    top_risky = sorted(flights, key=lambda flight: flight["risk"], reverse=True)[:3]
-    prevented_delay_minutes = sum(max(4, int(round(flight["predicted_delay_minutes"] * 0.3))) for flight in top_risky)
+    impact_summary = get_impact_summary()
+    prevented_delay_minutes = impact_summary["total_time_saved"]
 
     return {
         "high_risk_count": high_risk_count,
@@ -459,6 +471,8 @@ def get_flights():
 
     for flight in flights:
         enriched, _ = _enrich_flight(flight)
+        sync_flight_state(enriched)
+        enriched = overlay_persisted_state(enriched)
         enriched_flights.append(enriched)
 
     return jsonify({
@@ -480,16 +494,88 @@ def get_flight_detail_data(flight_id):
     airport_state, context = _build_operational_context(enriched_flight, delay_prediction)
     recommendation = get_gemini_recommendation(airport_state, api_key=os.getenv('GEMINI_API_KEY'))
     risk_cause = _build_risk_cause(enriched_flight, delay_prediction, airport_state, context)
+    executive_summary = recommendation.get("executive_summary", "")
+
+    sync_flight_state(
+        enriched_flight,
+        risk_cause=risk_cause,
+        executive_summary=executive_summary,
+        airport_state=airport_state,
+        recommendation=recommendation,
+    )
+    enriched_flight = overlay_persisted_state(enriched_flight)
     recommendation_cards = _serialize_recommendations(recommendation, airport_state)
+    ensure_recommendation_actions(flight_id, recommendation_cards)
+    analysis_state = get_flight_analysis_state(flight_id)
+
+    if analysis_state is None:
+        return jsonify({"error": f"Unable to load persisted analysis for {flight_id}"}), 500
+
+    state_row = analysis_state["state"]
+    executive_summary = state_row.get("executive_summary") or executive_summary
 
     return jsonify({
         "flight": enriched_flight,
         "airport_state": airport_state,
         "recommendation": recommendation,
+        "risk_cause": state_row.get("risk_cause") or risk_cause,
+        "recommendations": analysis_state["open_recommendations"],
+        "completed_recommendations": analysis_state["completed_recommendations"],
+        "expected_impact": analysis_state["expected_impact"],
+        "executive_summary": executive_summary,
+    })
+
+
+@app.route('/api/flight/<flight_id>/apply_recommendations', methods=['POST'])
+def apply_flight_recommendations(flight_id):
+    initialize_runtime()
+    payload = request.get_json(silent=True) or {}
+    action_ids = payload.get("action_ids") or []
+    operator_id = str(payload.get("operator_id") or "dashboard_user")
+
+    try:
+        result = apply_recommendations(flight_id, action_ids, operator_id=operator_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    flight = data_loader.get_flight_by_id(flight_id)
+    if flight is None:
+        return jsonify({"error": f"Flight {flight_id} not found"}), 404
+
+    enriched_flight, delay_prediction = _enrich_flight(flight)
+    enriched_flight = overlay_persisted_state(enriched_flight)
+    airport_state, context = _build_operational_context(enriched_flight, delay_prediction)
+    risk_cause = _build_risk_cause(enriched_flight, delay_prediction, airport_state, context)
+    analysis_state = get_flight_analysis_state(flight_id)
+
+    return jsonify({
+        "flight": enriched_flight,
         "risk_cause": risk_cause,
-        "recommendations": recommendation_cards,
-        "expected_impact": recommendation.get("expected_impact", {}),
-        "executive_summary": recommendation.get("executive_summary", ""),
+        "recommendations": analysis_state["open_recommendations"] if analysis_state else [],
+        "completed_recommendations": analysis_state["completed_recommendations"] if analysis_state else [],
+        "expected_impact": analysis_state["expected_impact"] if analysis_state else {},
+        "applied_actions": result["applied_actions"],
+        "impact_summary": get_impact_summary(),
+    })
+
+
+@app.route('/api/impact_summary')
+def get_impact_summary_data():
+    initialize_runtime()
+    tracked_flights = data_loader.get_current_flights(limit=TRACKED_FLIGHT_LIMIT)
+    for flight in tracked_flights:
+        enriched, _ = _enrich_flight(flight)
+        sync_flight_state(enriched)
+    return jsonify(get_impact_summary())
+
+
+@app.route('/api/audit_feed')
+def get_audit_feed_data():
+    initialize_runtime()
+    limit = request.args.get('limit', default=50, type=int)
+    return jsonify({
+        "entries": get_audit_feed(limit=max(1, min(limit, 200))),
+        "impact_summary": get_impact_summary(),
     })
 
 @app.route('/api/parking_status')

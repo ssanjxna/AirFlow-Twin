@@ -98,23 +98,17 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Load scripts in order -->
-    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+    <!-- Load live scripts -->
     <script src="{{ url_for('static', filename='js/live-data.js') }}"></script>
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/flight-detail.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/horizon.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/event-detail.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/parking-detail.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/flights.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard-live.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/flight-detail-live.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/flight-detail-db.js') }}"></script>
     <script src="{{ url_for('static', filename='js/horizon-live.js') }}"></script>
     <script src="{{ url_for('static', filename='js/event-detail-live.js') }}"></script>
     <script src="{{ url_for('static', filename='js/parking-detail-live.js') }}"></script>
     <script src="{{ url_for('static', filename='js/flights-live.js') }}"></script>
     <script src="{{ url_for('static', filename='js/impact-live.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/audit-live.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

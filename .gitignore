@@ -50,6 +50,9 @@ models/*.joblib
 data/*.csv
 data/*.db
 *.sqlite3
+.codex_tmp/
+database/integration_test*.db
+database/integration_test*.db-journal
 
 # Logs
 *.log

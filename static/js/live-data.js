@@ -163,4 +163,7 @@ function loadSelectedHorizonEvent() {
 
 document.addEventListener('DOMContentLoaded', () => {
     refreshShellMetrics();
+    updateCurrentTime();
+    setInterval(updateCurrentTime, 1000);
+    setInterval(refreshShellMetrics, 30000);
 });

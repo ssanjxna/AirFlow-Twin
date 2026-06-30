@@ -12,14 +12,72 @@
     <h2 class="text-xl font-bold text-white">Audit Log</h2>
 </div>
 
-<!-- Placeholder Content -->
-<div class="bg-slate-900 rounded-lg border border-slate-800 p-8 flex-1 flex items-center justify-center">
-    <div class="text-center">
-        <svg class="w-16 h-16 text-slate-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-        </svg>
-        <h3 class="text-lg font-bold text-slate-400 mb-2">Audit Log Coming Soon</h3>
-        <p class="text-sm text-slate-500">This page will display all AI decisions, applied recommendations, and system changes.</p>
+<div class="grid grid-cols-12 gap-4 flex-1">
+    <div class="col-span-7 bg-slate-900 rounded-lg border border-slate-800 p-5 flex flex-col">
+        <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+            <div>
+                <h3 class="text-sm font-bold text-slate-200 uppercase">Recent Recommendation Actions</h3>
+                <p class="text-xs text-slate-500 mt-1">Database-backed history of applied AI actions.</p>
+            </div>
+            <span class="text-xs text-slate-500" id="audit-entry-count">0 entries</span>
+        </div>
+        <div id="audit-empty-state" class="hidden flex-1 flex items-center justify-center text-center text-slate-500">
+            <div>
+                <h4 class="text-base font-semibold text-slate-400 mb-2">No applied actions yet</h4>
+                <p class="text-sm">Apply a flight recommendation and it will appear here.</p>
+            </div>
+        </div>
+        <div id="audit-list" class="space-y-3 overflow-y-auto custom-scrollbar pr-2 flex-1">
+        </div>
+    </div>
+
+    <div class="col-span-5 bg-slate-900 rounded-lg border border-slate-800 p-5 flex flex-col">
+        <div class="mb-4 border-b border-slate-800 pb-3">
+            <h3 class="text-sm font-bold text-slate-200 uppercase">Selected Entry Details</h3>
+            <p class="text-xs text-slate-500 mt-1">Before vs after metrics for the chosen audit event.</p>
+        </div>
+        <div id="audit-detail-empty" class="flex-1 flex items-center justify-center text-slate-500 text-sm">
+            Select an audit entry to inspect its details.
+        </div>
+        <div id="audit-detail" class="hidden space-y-4">
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="text-xs text-slate-500 uppercase">Flight</p>
+                        <p class="text-xl font-bold text-white" id="audit-detail-flight">--</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-slate-500 uppercase">Operator</p>
+                        <p class="text-sm text-slate-300" id="audit-detail-operator">--</p>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500 mt-3" id="audit-detail-time">--</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-800 rounded p-3 border border-slate-700">
+                    <p class="text-[10px] text-slate-500 uppercase mb-1">Risk</p>
+                    <p class="text-sm text-slate-300"><span id="audit-detail-risk-before">--</span> -> <span id="audit-detail-risk-after">--</span></p>
+                </div>
+                <div class="bg-slate-800 rounded p-3 border border-slate-700">
+                    <p class="text-[10px] text-slate-500 uppercase mb-1">Confidence</p>
+                    <p class="text-sm text-slate-300"><span id="audit-detail-confidence-before">--</span> -> <span id="audit-detail-confidence-after">--</span></p>
+                </div>
+                <div class="bg-slate-800 rounded p-3 border border-slate-700">
+                    <p class="text-[10px] text-slate-500 uppercase mb-1">Predicted Delay</p>
+                    <p class="text-sm text-slate-300"><span id="audit-detail-delay-before">--</span> -> <span id="audit-detail-delay-after">--</span></p>
+                </div>
+                <div class="bg-slate-800 rounded p-3 border border-slate-700">
+                    <p class="text-[10px] text-slate-500 uppercase mb-1">Delay Saved</p>
+                    <p class="text-sm font-bold text-green-400" id="audit-detail-delay-saved">--</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <p class="text-xs text-slate-500 uppercase mb-2">Applied Actions</p>
+                <ul id="audit-detail-actions" class="space-y-2 text-sm text-slate-300"></ul>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

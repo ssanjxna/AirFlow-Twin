@@ -270,7 +270,6 @@ def get_gemini_recommendation(airport_state, api_key=None):
             generation_config={
                 "temperature": 0.0,
                 "max_output_tokens": 4000,
-                "response_mime_type": "application/json"
             }
         )
 

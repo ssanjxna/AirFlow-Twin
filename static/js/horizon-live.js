@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function initHorizonLivePage() {
     bindHorizonTimeButtons();
+    syncHorizonTimeButtons();
     await loadHorizonLiveData();
 }
 
@@ -50,6 +51,18 @@ function bindHorizonTimeButtons() {
             setCurrentTimeStep(parseInt(this.dataset.time, 10));
             renderHorizonLiveTimeline();
         };
+    });
+}
+
+function syncHorizonTimeButtons() {
+    document.querySelectorAll('.time-btn').forEach((button) => {
+        const buttonMinutes = parseInt(button.dataset.time, 10);
+        button.classList.remove('bg-blue-600', 'text-white');
+        button.classList.add('bg-slate-800', 'text-slate-400');
+        if (buttonMinutes === currentTimeStep) {
+            button.classList.remove('bg-slate-800', 'text-slate-400');
+            button.classList.add('bg-blue-600', 'text-white');
+        }
     });
 }
 

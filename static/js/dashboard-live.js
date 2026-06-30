@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function initDashboardLive() {
     bindDashboardTimeButtons();
+    syncDashboardTimeButtons();
     await loadDashboardLiveData();
     setInterval(loadDashboardLiveData, 30000);
 }
@@ -57,6 +58,18 @@ function bindDashboardTimeButtons() {
             renderDashboardLiveEvents(dashboardLiveEvents);
             renderDashboardPredictionMessage(dashboardLiveEvents);
         };
+    });
+}
+
+function syncDashboardTimeButtons() {
+    document.querySelectorAll('.time-btn').forEach((button) => {
+        const buttonMinutes = parseInt(button.dataset.time, 10);
+        button.classList.remove('bg-blue-600', 'text-white');
+        button.classList.add('bg-slate-800', 'text-slate-400');
+        if (buttonMinutes === currentTimeStep) {
+            button.classList.remove('bg-slate-800', 'text-slate-400');
+            button.classList.add('bg-blue-600', 'text-white');
+        }
     });
 }
 
