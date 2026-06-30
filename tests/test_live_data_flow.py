@@ -1,6 +1,7 @@
 import importlib
 import sqlite3
 import sys
+import uuid
 
 import pytest
 
@@ -8,7 +9,7 @@ import pytest
 @pytest.fixture
 def live_client(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    db_uri = "file:airflow_test?mode=memory&cache=shared"
+    db_uri = f"file:airflow_test_{uuid.uuid4().hex}?mode=memory&cache=shared"
     keeper = sqlite3.connect(db_uri, uri=True)
     keeper.row_factory = sqlite3.Row
 
@@ -75,6 +76,79 @@ def test_simulator_endpoint_adds_new_flight_and_persists_it(live_client):
     assert row is not None
     assert row["status"] == "scheduled"
     assert row["airline"] == "Air Mauritius"
+
+
+def test_simulator_flight_appears_in_live_feed_with_frontend_limit(live_client):
+    response = live_client.post(
+        "/api/simulator/add-flight",
+        json={
+            "flight_id": "SIM-LIVE-001",
+            "flight_number": "AF901",
+            "airline": "Air France",
+            "origin": "Paris",
+            "destination": "Mauritius",
+            "scheduled_arrival": "2026-06-30 11:30:00",
+            "scheduled_departure": "2026-06-30 10:30:00",
+            "aircraft_type": "A350",
+            "status": "scheduled",
+            "scenario": "HIGH",
+            "maintenance_required": True,
+            "fuel_required": True,
+            "baggage_load": "HIGH",
+            "security_queue_level": "CONGESTED",
+            "gate_conflict": True,
+            "gate": "C3",
+        },
+    )
+    assert response.status_code == 200
+
+    flights_response = live_client.get("/api/flights?limit=24")
+    assert flights_response.status_code == 200
+    flights_data = flights_response.get_json()
+
+    assert len(flights_data["flights"]) == 24
+    assert any(flight["id"] == "SIM-LIVE-001" for flight in flights_data["flights"])
+
+
+def test_simulator_flight_detail_preserves_snapshot_and_ai_recommendations(live_client):
+    response = live_client.post(
+        "/api/simulator/add-flight",
+        json={
+            "flight_id": "SIM-DETAIL-001",
+            "flight_number": "MK777",
+            "airline": "Air Mauritius",
+            "origin": "Johannesburg",
+            "destination": "Mauritius",
+            "scheduled_arrival": "2026-06-30 12:15:00",
+            "scheduled_departure": "2026-06-30 11:05:00",
+            "aircraft_type": "A330",
+            "status": "scheduled",
+            "scenario": "HIGH",
+            "maintenance_required": True,
+            "fuel_required": True,
+            "gate_conflict": True,
+            "gate": "C2",
+            "delay_reason": "TECH",
+            "passenger_count": 321,
+            "baggage_count": 210,
+            "load_factor": 0.97,
+            "security_queue_level": "CONGESTED",
+            "baggage_load": "HIGH",
+        },
+    )
+    assert response.status_code == 200
+
+    detail_response = live_client.get("/api/flight/SIM-DETAIL-001/detail")
+    assert detail_response.status_code == 200
+    detail_data = detail_response.get_json()
+
+    assert detail_data["flight"]["gate"] == "C2"
+    assert detail_data["flight"]["passenger_count"] == 321
+    assert detail_data["flight"]["baggage_count"] == 210
+    assert detail_data["flight"]["delay_reason"] == "TECH"
+    assert detail_data["flight"]["maintenance_required"] == 1
+    assert detail_data["recommendations"]
+    assert detail_data["expected_impact"]["current_overall_risk_percent"] >= 0
 
 
 def test_applying_recommendations_updates_flights_impact_and_audit(live_client):

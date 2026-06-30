@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime, timedelta
 
@@ -12,6 +13,29 @@ class AirportDataLoader:
         self.gate_events_df = None
         self.maintenance_df = None
         self.passengers_df = None
+
+    def _load_flight_snapshot(self, raw_snapshot):
+        if not raw_snapshot:
+            return {}
+
+        try:
+            snapshot = json.loads(raw_snapshot)
+        except Exception:
+            return {}
+
+        return snapshot if isinstance(snapshot, dict) else {}
+
+    def _extract_time_text(self, value, default='10:00'):
+        text = str(value or '').strip()
+        if not text:
+            return default
+
+        if 'T' in text:
+            text = text.split('T', 1)[1]
+        elif ' ' in text:
+            text = text.split(' ', 1)[1]
+
+        return text[:5] if len(text) >= 5 and text[2] == ':' else default
 
     def _to_int(self, value, default=0):
         try:
@@ -128,11 +152,25 @@ class AirportDataLoader:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT flight_id, flight_number, airline, origin, destination,
-                       scheduled_departure, scheduled_arrival, gate_id, status,
-                       aircraft_type, delay_minutes
+                SELECT
+                    flights.flight_id,
+                    flights.flight_number,
+                    flights.airline,
+                    flights.origin,
+                    flights.destination,
+                    flights.scheduled_departure,
+                    flights.scheduled_arrival,
+                    flights.actual_departure,
+                    flights.actual_arrival,
+                    flights.gate_id,
+                    flights.status,
+                    flights.aircraft_type,
+                    flights.delay_minutes,
+                    flight_decision_state.flight_snapshot_json
                 FROM flights
-                ORDER BY scheduled_departure, flight_id
+                LEFT JOIN flight_decision_state
+                    ON flight_decision_state.flight_id = flights.flight_id
+                ORDER BY COALESCE(flight_decision_state.updated_at, flights.scheduled_departure) DESC, flights.flight_id DESC
                 """
             )
             rows = cursor.fetchall()
@@ -147,55 +185,77 @@ class AirportDataLoader:
             if not flight_id:
                 continue
 
-            scheduled_departure = str(row["scheduled_departure"] or "10:00")
-            if " " in scheduled_departure:
-                scheduled_departure = scheduled_departure.split(" ")[1][:5]
+            snapshot = self._load_flight_snapshot(row["flight_snapshot_json"])
+            scheduled_departure_raw = row["scheduled_departure"] or snapshot.get("scheduled_departure") or "10:00"
+            scheduled_arrival_raw = row["scheduled_arrival"] or snapshot.get("scheduled_arrival") or ""
+            gate = str(row["gate_id"] or snapshot.get("gate") or "A1")
+            lat = snapshot.get("lat")
+            lng = snapshot.get("lng")
+            if lat is None or lng is None:
+                lat, lng = self._get_gate_position(gate)
 
-            gate = str(row["gate_id"] or "A1")
-            lat, lng = self._get_gate_position(gate)
-            delay_minutes = int(row["delay_minutes"] or 0)
-            risk_score = max(20, min(95, 25 + delay_minutes * 2))
-            airline = str(row["airline"] or "Air Mauritius")
+            delay_minutes = int(row["delay_minutes"] or snapshot.get("delay_minutes") or 0)
+            airline = str(row["airline"] or snapshot.get("airline") or "Air Mauritius")
+            risk_score = snapshot.get("risk")
+            if risk_score is None:
+                risk_score = max(20, min(95, 25 + delay_minutes * 2))
+            risk_score = self._to_int(risk_score, max(20, min(95, 25 + delay_minutes * 2)))
+
+            scheduled_departure = self._extract_time_text(scheduled_departure_raw)
+            airline_code = str(snapshot.get("airline_code") or airline[:2].upper() or "UK")
+            passenger_count = max(80, self._to_int(snapshot.get("passenger_count"), 180))
+            load_factor = max(0.1, min(1.0, self._to_float(snapshot.get("load_factor"), 0.8)))
+            baggage_count = max(40, self._to_int(snapshot.get("baggage_count"), 120))
+            delay_reason = str(snapshot.get("delay_reason") or "Operational")
+            maintenance_required = int(snapshot.get("maintenance_required", int(delay_minutes >= 30)))
 
             flights.append({
                 "id": flight_id,
                 "lat": lat,
                 "lng": lng,
-                "status": str(row["status"] or "scheduled"),
+                "status": str(row["status"] or snapshot.get("status") or "scheduled"),
                 "risk": risk_score,
                 "gate": gate,
-                "terminal": gate[:2] if gate else "T1",
-                "origin": str(row["origin"] or "DXB"),
-                "destination": str(row["destination"] or "MRU"),
-                "airline_code": airline[:2].upper() if airline else "UK",
-                "distance": 5000,
-                "time_of_day": "Morning",
-                "day_of_week": "Mon",
-                "season": "Summer",
-                "flight_type": "Passenger",
+                "terminal": str(snapshot.get("terminal") or (gate[:2] if gate else "T1")),
+                "origin": str(row["origin"] or snapshot.get("origin") or "DXB"),
+                "destination": str(row["destination"] or snapshot.get("destination") or "MRU"),
+                "airline_code": airline_code,
+                "distance": self._to_int(snapshot.get("distance"), 5000),
+                "time_of_day": str(snapshot.get("time_of_day") or "Morning"),
+                "day_of_week": str(snapshot.get("day_of_week") or "Mon"),
+                "season": str(snapshot.get("season") or "Summer"),
+                "flight_type": str(snapshot.get("flight_type") or "Passenger"),
                 "scheduled_departure": scheduled_departure,
-                "aircraft_type": str(row["aircraft_type"] or "A320"),
-                "registration": "",
+                "scheduled_arrival": str(scheduled_arrival_raw),
+                "actual_departure": row["actual_departure"] or snapshot.get("actual_departure"),
+                "actual_arrival": row["actual_arrival"] or snapshot.get("actual_arrival"),
+                "aircraft_type": str(row["aircraft_type"] or snapshot.get("aircraft_type") or "A320"),
+                "registration": str(snapshot.get("registration") or ""),
                 "delay_minutes": delay_minutes,
-                "delay_reason": "Operational",
-                "passenger_count": 180,
-                "load_factor": 0.8,
-                "baggage_count": 120,
-                "maintenance_required": int(delay_minutes >= 30),
+                "delay_reason": delay_reason,
+                "passenger_count": passenger_count,
+                "load_factor": load_factor,
+                "baggage_count": baggage_count,
+                "maintenance_required": maintenance_required,
                 "flight_number": str(row["flight_number"] or flight_id),
                 "airline": airline,
+                "scenario": str(snapshot.get("scenario") or ""),
+                "gate_conflict": bool(snapshot.get("gate_conflict", False)),
+                "baggage_load": str(snapshot.get("baggage_load") or ""),
+                "security_queue_level": str(snapshot.get("security_queue_level") or ""),
+                "fuel_required": bool(snapshot.get("fuel_required", True)),
             })
 
         return flights
 
     def get_current_flights(self, limit=15):
+        db_flights = self._get_db_flights()
         if self.flights_df is None:
-            db_flights = self._get_db_flights()
             if limit is None:
                 return db_flights
             return db_flights[:limit]
 
-        sample_flights = self.flights_df if limit is None else self.flights_df.head(limit)
+        sample_flights = self.flights_df if (limit is None or db_flights) else self.flights_df.head(limit)
 
         flights_list = []
         for idx, row in sample_flights.iterrows():
@@ -207,16 +267,21 @@ class AirportDataLoader:
                 print(f"Error processing row {idx}: {e}")
                 continue
 
-        db_flights = self._get_db_flights()
-        if db_flights:
-            existing_ids = {flight["id"] for flight in flights_list}
-            for flight in db_flights:
-                if flight["id"] not in existing_ids:
-                    flights_list.append(flight)
-            if limit is not None:
-                return flights_list[:limit]
+        merged_flights = []
+        seen_ids = set()
 
-        return flights_list
+        for flight in db_flights + flights_list:
+            flight_id = str(flight.get("id") or "")
+            if not flight_id or flight_id in seen_ids:
+                continue
+
+            seen_ids.add(flight_id)
+            merged_flights.append(flight)
+
+            if limit is not None and len(merged_flights) >= limit:
+                break
+
+        return merged_flights if limit is None else merged_flights[:limit]
 
     def get_flight_by_id(self, flight_id):
         db_flights = self._get_db_flights()
