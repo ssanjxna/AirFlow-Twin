@@ -7,13 +7,18 @@ from flask_socketio import SocketIO
 from dotenv import load_dotenv
 from backend.airport_state_builder import build_airport_state
 from database.operational_state import (
+    apply_parking_recommendations,
     apply_recommendations,
     ensure_operational_tables,
+    ensure_parking_recommendation_actions,
     ensure_recommendation_actions,
     get_audit_feed,
     get_flight_analysis_state,
     get_impact_summary,
+    get_parking_analysis_state,
+    overlay_persisted_parking_state,
     overlay_persisted_state,
+    sync_parking_state,
     sync_flight_state,
 )
 from gemini_orchestrator import get_gemini_recommendation
@@ -47,6 +52,17 @@ client = None
 GEMINI_AVAILABLE = False
 delay_artifact = None
 runtime_initialized = False
+
+
+@app.after_request
+def disable_cache_for_live_pages(response):
+    if request.method == "GET" and (
+        request.path.startswith("/api/") or response.mimetype == "text/html"
+    ):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 def _is_werkzeug_reloader_parent():
@@ -349,6 +365,38 @@ def _serialize_recommendations(recommendation, airport_state):
     return cards
 
 
+def _serialize_parking_recommendations(recommendation_texts, current_risk):
+    cards = []
+    priority = _risk_level_from_percent(current_risk)
+
+    for index, text in enumerate(recommendation_texts or [], start=1):
+        lowered = str(text).lower()
+        risk_reduction = max(6, int(round(current_risk * (0.18 if index == 1 else 0.12))))
+        delay_reduction = max(4, int(round(current_risk * (0.12 if index == 1 else 0.08))))
+        occupancy_reduction = max(3, int(round(risk_reduction * 0.65)))
+
+        if "sign" in lowered:
+            target_team = "Traffic Operations"
+        elif "staff" in lowered or "traffic" in lowered:
+            target_team = "Landside Operations"
+        else:
+            target_team = "Parking Operations"
+
+        cards.append({
+            "id": f"parking-rec-{index}",
+            "text": text,
+            "impact": f"-{delay_reduction}m delay, -{risk_reduction}% risk",
+            "delay_reduction": delay_reduction,
+            "risk_reduction": risk_reduction,
+            "occupancy_reduction": occupancy_reduction,
+            "target_team": target_team,
+            "priority": priority,
+            "validation_required": True,
+        })
+
+    return cards
+
+
 def _enrich_flight(flight):
     delay_prediction = _predict_delay_for_flight(flight)
     enriched = {
@@ -360,6 +408,53 @@ def _enrich_flight(flight):
         "delay_prediction": delay_prediction.get("prediction", "Delayed"),
     }
     return enriched, delay_prediction
+
+
+def _build_parking_snapshot():
+    current_hour = datetime.now().hour
+    current_day = datetime.now().strftime('%A')
+    day_type = 'weekend' if current_day in ['Saturday', 'Sunday'] else 'weekday'
+    tracked_flights = data_loader.get_current_flights(limit=TRACKED_FLIGHT_LIMIT)
+    average_delay = round(
+        sum(_safe_int(flight.get('delay_minutes'), 0) for flight in tracked_flights) / max(len(tracked_flights), 1),
+        1,
+    )
+    flights_arriving = max(3, min(18, len(tracked_flights) // 3 + (2 if current_day in ['Friday', 'Saturday', 'Sunday'] else 0)))
+    is_peak = 1 if (7 <= current_hour <= 9) or (17 <= current_hour <= 19) else 0
+    current_occupancy_rate = max(28, min(96, int(32 + flights_arriving * 3 + average_delay * 0.6 + is_peak * 12)))
+
+    prediction = parking_predictor.predict(
+        hour=current_hour,
+        day_type=day_type,
+        weather='clear',
+        flights_arriving=flights_arriving,
+        occupancy_rate=current_occupancy_rate,
+        is_peak_hour=is_peak,
+    )
+
+    score = int(round(prediction['congestion_score']))
+    if score >= 80:
+        status = 'critical'
+    elif score >= 50:
+        status = 'high'
+    elif score >= 25:
+        status = 'normal'
+    else:
+        status = 'low'
+
+    return {
+        'area_id': 'PARKING',
+        'timestamp': datetime.now().isoformat(),
+        'current_occupancy_rate': current_occupancy_rate,
+        'congestion_score': score,
+        'status': status,
+        'color': prediction['color'],
+        'recommendations': prediction['recommendations'],
+        'flights_arriving': flights_arriving,
+        'is_peak_hour': bool(is_peak),
+        'estimated_delay_minutes': max(4, int(round(score * 0.22))),
+        'cause': f"{flights_arriving} arriving flights, average delay of {average_delay} minutes, and {current_occupancy_rate}% occupancy are driving current parking pressure.",
+    }
 
 
 def _summarize_flights(flights):
@@ -582,40 +677,55 @@ def get_audit_feed_data():
 def get_parking_status():
     """Get current parking congestion status and predictions"""
     initialize_runtime()
-    current_hour = datetime.now().hour
-    current_day = datetime.now().strftime('%A')
-    day_type = 'weekend' if current_day in ['Saturday', 'Sunday'] else 'weekday'
-    tracked_flights = data_loader.get_current_flights(limit=TRACKED_FLIGHT_LIMIT)
-    average_delay = round(
-        sum(_safe_int(flight.get('delay_minutes'), 0) for flight in tracked_flights) / max(len(tracked_flights), 1),
-        1,
+    parking_status = _build_parking_snapshot()
+    sync_parking_state(parking_status)
+    parking_status = overlay_persisted_parking_state(parking_status)
+
+    recommendation_cards = _serialize_parking_recommendations(
+        parking_status.get('recommendations', []),
+        int(parking_status.get('congestion_score', 0)),
     )
-    flights_arriving = max(3, min(18, len(tracked_flights) // 3 + (2 if current_day in ['Friday', 'Saturday', 'Sunday'] else 0)))
-    
-    # Determine if peak hour
-    is_peak = 1 if (7 <= current_hour <= 9) or (17 <= current_hour <= 19) else 0
-    current_occupancy_rate = max(28, min(96, int(32 + flights_arriving * 3 + average_delay * 0.6 + is_peak * 12)))
-    
-    prediction = parking_predictor.predict(
-        hour=current_hour,
-        day_type=day_type,
-        weather='clear',
-        flights_arriving=flights_arriving,
-        occupancy_rate=current_occupancy_rate,
-        is_peak_hour=is_peak
-    )
-    
+    ensure_parking_recommendation_actions(parking_status['area_id'], recommendation_cards)
+    analysis_state = get_parking_analysis_state(parking_status['area_id'])
+    open_recommendations = analysis_state["open_recommendations"] if analysis_state else []
+    completed_recommendations = analysis_state["completed_recommendations"] if analysis_state else []
+    expected_impact = analysis_state["expected_impact"] if analysis_state else {}
+
     return jsonify({
-        'timestamp': datetime.now().isoformat(),
-        'current_occupancy_rate': current_occupancy_rate,
-        'congestion_score': prediction['congestion_score'],
-        'status': prediction['status'],
-        'color': prediction['color'],
-        'recommendations': prediction['recommendations'],
-        'flights_arriving': flights_arriving,
-        'is_peak_hour': bool(is_peak),
-        'estimated_delay_minutes': max(4, int(round(prediction['congestion_score'] * 0.22))),
-        'cause': f"{flights_arriving} arriving flights, average delay of {average_delay} minutes, and {current_occupancy_rate}% occupancy are driving current parking pressure.",
+        **parking_status,
+        'recommendations': [item['text'] for item in open_recommendations],
+        'recommendation_cards': open_recommendations,
+        'completed_recommendations': completed_recommendations,
+        'expected_impact': expected_impact,
+    })
+
+
+@app.route('/api/parking/apply_recommendations', methods=['POST'])
+def apply_parking_recommendations_data():
+    initialize_runtime()
+    payload = request.get_json(silent=True) or {}
+    action_ids = payload.get("action_ids") or []
+    operator_id = str(payload.get("operator_id") or "dashboard_user")
+
+    try:
+        result = apply_parking_recommendations("PARKING", action_ids, operator_id=operator_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    parking_status = overlay_persisted_parking_state(_build_parking_snapshot())
+    analysis_state = get_parking_analysis_state("PARKING")
+    open_recommendations = analysis_state["open_recommendations"] if analysis_state else []
+    completed_recommendations = analysis_state["completed_recommendations"] if analysis_state else []
+    expected_impact = analysis_state["expected_impact"] if analysis_state else {}
+
+    return jsonify({
+        **parking_status,
+        "recommendations": [item["text"] for item in open_recommendations],
+        "recommendation_cards": open_recommendations,
+        "completed_recommendations": completed_recommendations,
+        "expected_impact": expected_impact,
+        "applied_actions": result["applied_actions"],
+        "impact_summary": get_impact_summary(),
     })
 
 

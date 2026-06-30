@@ -23,27 +23,27 @@
                     <h1 class="text-2xl font-bold text-white">PARKING CONGESTION</h1>
                     <p class="text-sm text-slate-400 mt-1">Landside → Terminal Access</p>
                 </div>
-                <span class="px-3 py-1 bg-orange-600 text-white text-xs font-bold rounded uppercase" id="parking-badge">HIGH RISK</span>
+                <span class="px-3 py-1 bg-slate-700 text-slate-300 text-xs font-bold rounded uppercase" id="parking-badge">LOADING</span>
             </div>
             
             <div class="flex items-center gap-6 mt-6">
                 <div class="relative w-24 h-24 flex-shrink-0">
                     <svg class="w-24 h-24 transform -rotate-90">
                         <circle cx="48" cy="48" r="40" stroke="#1e293b" stroke-width="8" fill="none"></circle>
-                        <circle cx="48" cy="48" r="40" stroke="#f97316" stroke-width="8" fill="none" stroke-dasharray="251" stroke-dashoffset="35" id="parking-circle"></circle>
+                        <circle cx="48" cy="48" r="40" stroke="#f97316" stroke-width="8" fill="none" stroke-dasharray="251" stroke-dashoffset="251" id="parking-circle"></circle>
                     </svg>
                     <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-3xl font-bold text-white" id="parking-risk-score">65</span>
+                        <span class="text-3xl font-bold text-white" id="parking-risk-score">--</span>
                     </div>
                 </div>
                 <div class="flex-1 space-y-3">
                     <div class="bg-slate-800 rounded p-3 border border-slate-700">
                         <p class="text-[10px] text-slate-400 uppercase mb-1">Current Occupancy</p>
-                        <p class="text-xl font-bold text-orange-500" id="parking-occupancy">65%</p>
+                        <p class="text-xl font-bold text-orange-500" id="parking-occupancy">--</p>
                     </div>
                     <div class="bg-slate-800 rounded p-3 border border-slate-700">
                         <p class="text-[10px] text-slate-400 uppercase mb-1">Predicted Delay</p>
-                        <p class="text-xl font-bold text-red-500" id="parking-delay">15m</p>
+                        <p class="text-xl font-bold text-red-500" id="parking-delay">--</p>
                     </div>
                 </div>
             </div>
@@ -54,7 +54,7 @@
                 <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                 WHY AT RISK
             </h3>
-            <p class="text-sm text-slate-300 leading-relaxed" id="parking-cause">Passenger parking congestion at 65%. Heavy vehicle traffic causing bottlenecks at terminal access points. Incoming flights will exacerbate congestion.</p>
+            <p class="text-sm text-slate-300 leading-relaxed" id="parking-cause">Loading parking analysis...</p>
         </div>
     </div>
 

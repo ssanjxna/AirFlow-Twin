@@ -15,13 +15,7 @@ async function initFlightDetailDbPage() {
     const flightId = window.location.pathname.split('/').pop();
 
     try {
-        const response = await fetch(`/api/flight/${flightId}/detail`);
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Flight detail unavailable');
-        }
-
+        const data = await fetchLiveJson(`/api/flight/${flightId}/detail`);
         flightDetailDbData = data;
         renderFlightDetailDb(data);
     } catch (error) {
@@ -34,13 +28,12 @@ async function initFlightDetailDbPage() {
 function renderFlightDetailDb(data) {
     const flight = data.flight;
     const risk = Math.round(flight.risk || 0);
-    const circleOffset = Math.max(0, 251 - (251 * risk / 100));
 
     document.getElementById('detail-flight-id').textContent = flight.id;
     document.getElementById('detail-flight-route').textContent = `${flight.origin} -> ${flight.destination}`;
     document.getElementById('detail-risk-score').textContent = risk;
-    document.getElementById('detail-risk-circle').setAttribute('stroke', risk >= 80 ? '#ef4444' : (risk >= 50 ? '#f97316' : '#22c55e'));
-    document.getElementById('detail-risk-circle').setAttribute('stroke-dashoffset', String(circleOffset));
+    document.getElementById('detail-risk-circle').setAttribute('stroke', getRiskStrokeColor(risk));
+    updateCircularProgress('detail-risk-circle', risk);
     document.getElementById('detail-predicted-delay').textContent = `${flight.predicted_delay_minutes}m`;
     document.getElementById('detail-confidence').textContent = `${flight.confidence_percent}%`;
     document.getElementById('detail-risk-cause').textContent = data.risk_cause || data.executive_summary || 'Operational risk analysis is available.';
@@ -158,7 +151,7 @@ async function applySelectedRecommendationsDetail() {
     btn.disabled = true;
 
     try {
-        const response = await fetch(`/api/flight/${flightDetailDbData.flight.id}/apply_recommendations`, {
+        const data = await fetchLiveJson(`/api/flight/${flightDetailDbData.flight.id}/apply_recommendations`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -168,11 +161,6 @@ async function applySelectedRecommendationsDetail() {
                 operator_id: 'dashboard_user',
             }),
         });
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Unable to apply recommendations');
-        }
 
         flightDetailDbData = {
             ...flightDetailDbData,
