@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Parking Congestion - AirFlow Twin{% endblock %}
+
+{% block content %}
+<!-- TOP NAVIGATION -->
+<div class="flex items-center gap-4 mb-4">
+    <a href="/" class="flex items-center gap-2 text-slate-400 hover:text-white transition bg-slate-800 px-3 py-2 rounded-lg border border-slate-700">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        Back to Live Simulator
+    </a>
+    <h2 class="text-xl font-bold text-white">Parking Congestion Analysis & AI Decision</h2>
+</div>
+
+<!-- MAIN CONTENT GRID -->
+<div class="grid grid-cols-12 gap-4 flex-1">
+    
+    <!-- LEFT COLUMN: Parking Info (4 cols) -->
+    <div class="col-span-4 flex flex-col gap-4">
+        <div class="bg-slate-900 rounded-lg border border-slate-800 p-5">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-white">PARKING CONGESTION</h1>
+                    <p class="text-sm text-slate-400 mt-1">Landside → Terminal Access</p>
+                </div>
+                <span class="px-3 py-1 bg-orange-600 text-white text-xs font-bold rounded uppercase" id="parking-badge">HIGH RISK</span>
+            </div>
+            
+            <div class="flex items-center gap-6 mt-6">
+                <div class="relative w-24 h-24 flex-shrink-0">
+                    <svg class="w-24 h-24 transform -rotate-90">
+                        <circle cx="48" cy="48" r="40" stroke="#1e293b" stroke-width="8" fill="none"></circle>
+                        <circle cx="48" cy="48" r="40" stroke="#f97316" stroke-width="8" fill="none" stroke-dasharray="251" stroke-dashoffset="35" id="parking-circle"></circle>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-3xl font-bold text-white" id="parking-risk-score">65</span>
+                    </div>
+                </div>
+                <div class="flex-1 space-y-3">
+                    <div class="bg-slate-800 rounded p-3 border border-slate-700">
+                        <p class="text-[10px] text-slate-400 uppercase mb-1">Current Occupancy</p>
+                        <p class="text-xl font-bold text-orange-500" id="parking-occupancy">65%</p>
+                    </div>
+                    <div class="bg-slate-800 rounded p-3 border border-slate-700">
+                        <p class="text-[10px] text-slate-400 uppercase mb-1">Predicted Delay</p>
+                        <p class="text-xl font-bold text-red-500" id="parking-delay">15m</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-900 rounded-lg border border-slate-800 p-5 flex-1">
+            <h3 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+                <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                WHY AT RISK
+            </h3>
+            <p class="text-sm text-slate-300 leading-relaxed" id="parking-cause">Passenger parking congestion at 65%. Heavy vehicle traffic causing bottlenecks at terminal access points. Incoming flights will exacerbate congestion.</p>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN: AI Recommendations (8 cols) -->
+    <div class="col-span-8 flex flex-col gap-4">
+        <div class="bg-slate-900 rounded-lg border border-slate-800 p-5 flex-1 flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-green-400 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    AI RECOMMENDATIONS
+                </h3>
+                <button onclick="selectAllParkingRecommendations()" class="text-xs text-blue-400 hover:text-blue-300">Select All</button>
+            </div>
+            
+            <div id="parking-recommendations" class="space-y-2 overflow-y-auto custom-scrollbar flex-1 pr-2">
+                <!-- Cards injected by JS -->
+            </div>
+        </div>
+
+        <div class="bg-slate-900 rounded-lg border border-slate-800 p-5">
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <p class="text-xs text-slate-400 mb-3 uppercase font-bold">Expected Impact if Applied</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-800 rounded p-3 text-center border border-slate-700">
+                            <p class="text-[10px] text-slate-500 mb-1">Congestion Reduction</p>
+                            <p class="text-lg font-bold text-green-500" id="parking-expected-congestion">--</p>
+                        </div>
+                        <div class="bg-slate-800 rounded p-3 text-center border border-slate-700">
+                            <p class="text-[10px] text-slate-500 mb-1">Risk After Action</p>
+                            <p class="text-lg font-bold text-blue-500" id="parking-expected-risk">--</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col justify-end">
+                    <button onclick="applyParkingRecommendations()" id="parking-apply-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed shadow-lg shadow-blue-900/20">
+                        Select at least one recommendation
+                    </button>
+                    <p class="text-[10px] text-slate-500 text-center mt-2">Applying changes will update the Live Simulator.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
