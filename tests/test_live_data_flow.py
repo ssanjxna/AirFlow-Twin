@@ -37,6 +37,46 @@ def live_client(monkeypatch):
         sys.modules.pop("app", None)
 
 
+def test_simulator_endpoint_adds_new_flight_and_persists_it(live_client):
+    response = live_client.post(
+        "/api/simulator/add-flight",
+        json={
+            "flight_id": "SIM-TEST-001",
+            "flight_number": "MK901",
+            "airline": "Air Mauritius",
+            "origin": "Rodrigues",
+            "destination": "Mauritius",
+            "scheduled_arrival": "2026-06-30 11:30:00",
+            "scheduled_departure": "2026-06-30 10:30:00",
+            "aircraft_type": "ATR72",
+            "status": "scheduled",
+            "scenario": "HIGH",
+            "maintenance_required": True,
+            "fuel_required": True,
+            "baggage_load": "HIGH",
+            "security_queue_level": "CONGESTED",
+            "gate_conflict": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["status"] == "accepted"
+    assert payload["flight"]["id"] == "SIM-TEST-001"
+
+    db_module = importlib.import_module("database.db")
+    conn = db_module.get_connection()
+    row = conn.execute(
+        "SELECT flight_id, status, airline FROM flights WHERE flight_id = ?",
+        ("SIM-TEST-001",),
+    ).fetchone()
+    conn.close()
+
+    assert row is not None
+    assert row["status"] == "scheduled"
+    assert row["airline"] == "Air Mauritius"
+
+
 def test_applying_recommendations_updates_flights_impact_and_audit(live_client):
     db_module = importlib.import_module("database.db")
     flights_response = live_client.get("/api/flights?limit=24")

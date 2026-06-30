@@ -1,6 +1,9 @@
-import pandas as pd
 import os
 from datetime import datetime, timedelta
+
+import pandas as pd
+
+import database.db as db_module
 
 class AirportDataLoader:
     def __init__(self, data_dir='data'):
@@ -119,12 +122,81 @@ class AirportDataLoader:
         if self.passengers_df is not None:
             print(f"Loaded {len(self.passengers_df)} passenger records")
     
+    def _get_db_flights(self):
+        try:
+            conn = db_module.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT flight_id, flight_number, airline, origin, destination,
+                       scheduled_departure, scheduled_arrival, gate_id, status,
+                       aircraft_type, delay_minutes
+                FROM flights
+                ORDER BY scheduled_departure, flight_id
+                """
+            )
+            rows = cursor.fetchall()
+            conn.close()
+        except Exception as exc:
+            print(f"Could not load persisted flights: {exc}")
+            return []
+
+        flights = []
+        for row in rows:
+            flight_id = str(row["flight_id"])
+            if not flight_id:
+                continue
+
+            scheduled_departure = str(row["scheduled_departure"] or "10:00")
+            if " " in scheduled_departure:
+                scheduled_departure = scheduled_departure.split(" ")[1][:5]
+
+            gate = str(row["gate_id"] or "A1")
+            lat, lng = self._get_gate_position(gate)
+            delay_minutes = int(row["delay_minutes"] or 0)
+            risk_score = max(20, min(95, 25 + delay_minutes * 2))
+            airline = str(row["airline"] or "Air Mauritius")
+
+            flights.append({
+                "id": flight_id,
+                "lat": lat,
+                "lng": lng,
+                "status": str(row["status"] or "scheduled"),
+                "risk": risk_score,
+                "gate": gate,
+                "terminal": gate[:2] if gate else "T1",
+                "origin": str(row["origin"] or "DXB"),
+                "destination": str(row["destination"] or "MRU"),
+                "airline_code": airline[:2].upper() if airline else "UK",
+                "distance": 5000,
+                "time_of_day": "Morning",
+                "day_of_week": "Mon",
+                "season": "Summer",
+                "flight_type": "Passenger",
+                "scheduled_departure": scheduled_departure,
+                "aircraft_type": str(row["aircraft_type"] or "A320"),
+                "registration": "",
+                "delay_minutes": delay_minutes,
+                "delay_reason": "Operational",
+                "passenger_count": 180,
+                "load_factor": 0.8,
+                "baggage_count": 120,
+                "maintenance_required": int(delay_minutes >= 30),
+                "flight_number": str(row["flight_number"] or flight_id),
+                "airline": airline,
+            })
+
+        return flights
+
     def get_current_flights(self, limit=15):
         if self.flights_df is None:
-            return self._get_mock_flights(limit)
-        
+            db_flights = self._get_db_flights()
+            if limit is None:
+                return db_flights
+            return db_flights[:limit]
+
         sample_flights = self.flights_df if limit is None else self.flights_df.head(limit)
-        
+
         flights_list = []
         for idx, row in sample_flights.iterrows():
             try:
@@ -134,10 +206,24 @@ class AirportDataLoader:
             except Exception as e:
                 print(f"Error processing row {idx}: {e}")
                 continue
-        
+
+        db_flights = self._get_db_flights()
+        if db_flights:
+            existing_ids = {flight["id"] for flight in flights_list}
+            for flight in db_flights:
+                if flight["id"] not in existing_ids:
+                    flights_list.append(flight)
+            if limit is not None:
+                return flights_list[:limit]
+
         return flights_list
 
     def get_flight_by_id(self, flight_id):
+        db_flights = self._get_db_flights()
+        for flight in db_flights:
+            if flight["id"] == flight_id:
+                return flight
+
         if self.flights_df is None:
             return next((flight for flight in self._get_mock_flights(5) if flight["id"] == flight_id), None)
 

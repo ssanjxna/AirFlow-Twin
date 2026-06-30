@@ -1,11 +1,12 @@
 import os
 from pathlib import Path
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, jsonify, render_template, request
 from flask_socketio import SocketIO
 from dotenv import load_dotenv
 from backend.airport_state_builder import build_airport_state
+from database import db as db_module
 from database.operational_state import (
     apply_parking_recommendations,
     apply_recommendations,
@@ -25,6 +26,7 @@ from gemini_orchestrator import get_gemini_recommendation
 from loaders.backend_loader_delay_predictor import load_artifact as load_delay_artifact
 from loaders.backend_loader_delay_predictor import predict_delay
 from models.parking_predictor import ParkingCongestionPredictor
+from database.schema import create_tables as create_database_schema
 from utils.data_loader import AirportDataLoader
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -75,6 +77,14 @@ def initialize_runtime():
     if runtime_initialized:
         return
 
+    try:
+        conn = db_module.get_connection()
+        create_database_schema(conn.cursor())
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        _log(f"WARNING: Could not initialize database schema: {exc}")
+
     ensure_operational_tables()
 
     try:
@@ -123,6 +133,146 @@ airport_state = {
     "resources": {}
 }
 simulation_task = None
+
+# ============================================================================
+# SIMULATOR HELPERS
+# ============================================================================
+
+def _normalize_simulated_flight(payload):
+    scenario = str(payload.get("scenario") or "LOW").upper()
+    risk_by_scenario = {"LOW": 24, "MEDIUM": 58, "HIGH": 86}
+    risk = int(payload.get("risk", risk_by_scenario.get(scenario, 45)))
+    delay_minutes = int(payload.get("delay_minutes", 0 if scenario == "LOW" else 18 if scenario == "MEDIUM" else 42))
+    maintenance_required = bool(payload.get("maintenance_required", scenario == "HIGH"))
+    gate_conflict = bool(payload.get("gate_conflict", scenario in {"MEDIUM", "HIGH"}))
+    baggage_load = str(payload.get("baggage_load") or ("HIGH" if scenario != "LOW" else "LOW")).upper()
+    security_queue_level = str(payload.get("security_queue_level") or ("CONGESTED" if scenario != "LOW" else "NORMAL")).upper()
+
+    flight_id = str(payload.get("flight_id") or payload.get("id") or f"SIM-{datetime.now().strftime('%H%M%S')}").strip()
+    scheduled_departure = payload.get("scheduled_departure") or payload.get("departure_time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    scheduled_arrival = payload.get("scheduled_arrival") or payload.get("arrival_time") or (datetime.now() + timedelta(minutes=45)).strftime("%Y-%m-%d %H:%M:%S")
+
+    if " " in str(scheduled_departure):
+        scheduled_departure_text = str(scheduled_departure).split(" ")[1][:5]
+    else:
+        scheduled_departure_text = str(scheduled_departure)[:5]
+
+    gate = str(payload.get("gate") or ("B12" if scenario == "HIGH" else "A1"))
+    origin = str(payload.get("origin") or "DXB")
+    destination = str(payload.get("destination") or "MRU")
+    airline = str(payload.get("airline") or "Air Mauritius")
+    airline_code = str(payload.get("airline_code") or airline[:2].upper() or "UK")
+    aircraft_type = str(payload.get("aircraft_type") or "A320")
+    status = str(payload.get("status") or "scheduled")
+
+    return {
+        "id": flight_id,
+        "flight_id": flight_id,
+        "flight_number": str(payload.get("flight_number") or flight_id),
+        "airline": airline,
+        "airline_code": airline_code,
+        "origin": origin,
+        "destination": destination,
+        "scheduled_departure": str(scheduled_departure),
+        "scheduled_arrival": str(scheduled_arrival),
+        "actual_departure": payload.get("actual_departure") or None,
+        "actual_arrival": payload.get("actual_arrival") or None,
+        "gate": gate,
+        "terminal": payload.get("terminal") or gate[:2],
+        "status": status,
+        "risk": risk,
+        "delay_minutes": delay_minutes,
+        "delay_reason": str(payload.get("delay_reason") or ("TECH" if maintenance_required else "Operational")),
+        "maintenance_required": int(maintenance_required),
+        "baggage_count": int(payload.get("baggage_count") or (180 if baggage_load == "HIGH" else 90)),
+        "passenger_count": int(payload.get("passenger_count") or (220 if security_queue_level == "CONGESTED" else 150)),
+        "load_factor": float(payload.get("load_factor") or (0.95 if baggage_load == "HIGH" else 0.75)),
+        "aircraft_type": aircraft_type,
+        "registration": str(payload.get("registration") or ""),
+        "scenario": scenario,
+        "gate_conflict": gate_conflict,
+        "baggage_load": baggage_load,
+        "security_queue_level": security_queue_level,
+        "fuel_required": bool(payload.get("fuel_required", True)),
+        "scheduled_departure_display": scheduled_departure_text,
+        "lat": payload.get("lat"),
+        "lng": payload.get("lng"),
+    }
+
+
+def _persist_simulated_flight(payload):
+    initialize_runtime()
+    flight = _normalize_simulated_flight(payload)
+
+    conn = db_module.get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO flights (
+            flight_id,
+            flight_number,
+            airline,
+            origin,
+            destination,
+            scheduled_departure,
+            scheduled_arrival,
+            actual_departure,
+            actual_arrival,
+            gate_id,
+            status,
+            aircraft_type,
+            delay_minutes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(flight_id) DO UPDATE SET
+            flight_number = excluded.flight_number,
+            airline = excluded.airline,
+            origin = excluded.origin,
+            destination = excluded.destination,
+            scheduled_departure = excluded.scheduled_departure,
+            scheduled_arrival = excluded.scheduled_arrival,
+            actual_departure = excluded.actual_departure,
+            actual_arrival = excluded.actual_arrival,
+            gate_id = excluded.gate_id,
+            status = excluded.status,
+            aircraft_type = excluded.aircraft_type,
+            delay_minutes = excluded.delay_minutes
+        """,
+        (
+            flight["flight_id"],
+            flight["flight_number"],
+            flight["airline"],
+            flight["origin"],
+            flight["destination"],
+            flight["scheduled_departure"],
+            flight["scheduled_arrival"],
+            flight.get("actual_departure"),
+            flight.get("actual_arrival"),
+            flight.get("gate"),
+            flight["status"],
+            flight["aircraft_type"],
+            flight["delay_minutes"],
+        ),
+    )
+
+    cursor.execute(
+        """
+        INSERT INTO simulation_logs (flight_id, event, status)
+        VALUES (?, ?, ?)
+        """,
+        (flight["flight_id"], "simulator_ingested", "accepted"),
+    )
+
+    conn.commit()
+    conn.close()
+
+    enriched_flight, delay_prediction = _enrich_flight(flight)
+    sync_flight_state(enriched_flight)
+
+    airport_state["flights"] = data_loader.get_current_flights(limit=TRACKED_FLIGHT_LIMIT)
+    airport_state["resources"] = data_loader.get_resource_status()
+    socketio.emit("update_map", airport_state)
+
+    return enriched_flight, delay_prediction
 
 # ============================================================================
 # AI HELPER FUNCTIONS
@@ -651,6 +801,27 @@ def apply_flight_recommendations(flight_id):
         "expected_impact": analysis_state["expected_impact"] if analysis_state else {},
         "applied_actions": result["applied_actions"],
         "impact_summary": get_impact_summary(),
+    })
+
+
+@app.route('/api/simulator/add-flight', methods=['POST'])
+def add_flight():
+    initialize_runtime()
+    payload = request.get_json(silent=True) or {}
+
+    if not payload:
+        return jsonify({"status": "error", "message": "No simulator payload provided"}), 400
+
+    try:
+        flight, _ = _persist_simulated_flight(payload)
+    except Exception as exc:
+        _log(f"Simulator ingestion error: {exc}")
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+    return jsonify({
+        "status": "accepted",
+        "flight": flight,
+        "message": f"Flight {flight['id']} accepted for live simulation",
     })
 
 
