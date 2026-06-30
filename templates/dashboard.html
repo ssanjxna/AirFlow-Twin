@@ -14,7 +14,7 @@
             height: 4rem;
         }
         
-        /* Floating Risk Forecast Container */
+        /* Floating Risk Forecast */
         #risk-forecast-floating {
             position: absolute;
             bottom: 100%;
@@ -26,21 +26,41 @@
         }
         
         @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* AI Impact Modal */
+        #ai-impact-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+        }
+        
+        #ai-impact-modal.active {
+            display: flex;
+        }
+        
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 99;
+        }
+        
+        .modal-backdrop.active {
+            display: block;
         }
     </style>
 </head>
-<body class="bg-slate-950 text-white font-sans h-screen flex flex-col overflow-hidden">
+<body class="bg-slate-950 text-white font-sans min-h-screen">
 
     <!-- TOP HEADER -->
-    <nav class="flex justify-between items-center px-8 bg-slate-900 border-b border-slate-800 flex-shrink-0">
+    <nav class="flex justify-between items-center px-8 bg-slate-900 border-b border-slate-800">
         <div class="flex items-center gap-4">
             <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
@@ -81,12 +101,14 @@
         </div>
     </nav>
 
-    <!-- MAIN CONTENT AREA -->
-    <div class="flex-1 grid grid-cols-12 gap-3 p-3 overflow-hidden">
+    <!-- MAIN LAYOUT: Left (Map + Bottom panels) | Right (AI Decision full height) -->
+    <div class="grid grid-cols-12 gap-3 p-3">
         
-        <!-- LEFT: Map (8 cols) -->
-        <div class="col-span-8 flex flex-col overflow-hidden">
-            <div class="relative bg-slate-900 rounded-lg border border-slate-800 flex-1 overflow-hidden">
+        <!-- LEFT COLUMN: Map + Bottom Panels (8 cols) -->
+        <div class="col-span-8 flex flex-col gap-3">
+            
+            <!-- MAP CONTAINER - REDUCED SIZE -->
+            <div class="relative bg-slate-900 rounded-lg border border-slate-800 overflow-hidden" style="height: 400px;">
                 <div class="absolute inset-0 overflow-y-auto custom-scrollbar" id="map-scroll-container">
                     <div class="relative min-h-[120%]">
                         <img src="{{ url_for('static', filename='img/airport_bg.png') }}" 
@@ -96,7 +118,7 @@
                     </div>
                 </div>
                 
-                <!-- Live Simulation Badge - MOVED TO BOTTOM RIGHT -->
+                <!-- Live Simulation Badge -->
                 <div class="absolute bottom-4 right-4 flex items-center gap-2 bg-black/70 px-4 py-2 rounded-full border border-green-700/50 z-30 backdrop-blur-sm">
                     <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                     <span class="text-sm text-green-400 font-medium">Live Simulation</span>
@@ -106,209 +128,244 @@
                     <span class="text-sm text-slate-400">24°C</span>
                 </div>
             </div>
+
+            <!-- BOTTOM ROW: Flight Risk List + Prediction Horizon -->
+            <div class="grid grid-cols-2 gap-3">
+                
+                <!-- Flight Risk List -->
+                <div class="bg-slate-900 rounded-lg border border-slate-800 p-3 overflow-hidden flex flex-col" style="height: 250px;">
+                    <h3 class="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        FLIGHT RISK LIST
+                        <span class="text-[9px] text-slate-500 font-normal ml-auto">Sorted by Priority</span>
+                    </h3>
+                    <div class="overflow-y-auto flex-1 custom-scrollbar text-xs">
+                        <table class="w-full">
+                            <thead class="text-slate-500 border-b border-slate-800 sticky top-0 bg-slate-900">
+                                <tr>
+                                    <th class="text-left py-1">FLIGHT</th>
+                                    <th class="text-left">ROUTE</th>
+                                    <th class="text-right">DELAY</th>
+                                    <th class="text-right">RISK</th>
+                                </tr>
+                            </thead>
+                            <tbody id="flight-risk-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Prediction Horizon -->
+                <div class="bg-slate-900 rounded-lg border border-slate-800 p-3 flex flex-col" style="height: 250px;">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            PREDICTION HORIZON
+                        </h3>
+                        <button onclick="toggleRiskForecast()" class="text-[9px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded border border-slate-700 transition">
+                            Show Forecast
+                        </button>
+                    </div>
+
+                    <!-- FLOATING Risk Forecast -->
+                    <div id="risk-forecast-floating" class="hidden">
+                        <div class="bg-slate-800 rounded-lg p-3 border border-slate-700 shadow-2xl">
+                            <p class="text-xs text-slate-400 mb-3 uppercase font-bold">Risk Forecast</p>
+                            <div class="flex items-end justify-between gap-3 h-16">
+                                <div class="flex-1 flex flex-col items-center gap-1">
+                                    <div class="w-full bg-green-500 rounded-t-lg" id="bar-now" style="height: 60%"></div>
+                                    <span class="text-[9px] text-slate-500">Now</span>
+                                    <span class="text-xs font-bold text-slate-300" id="risk-now-label">61%</span>
+                                </div>
+                                <div class="flex-1 flex flex-col items-center gap-1">
+                                    <div class="w-full bg-yellow-500 rounded-t-lg" id="bar-10" style="height: 65%"></div>
+                                    <span class="text-[9px] text-slate-500">+10m</span>
+                                    <span class="text-xs font-bold text-slate-300" id="risk-10-label">65%</span>
+                                </div>
+                                <div class="flex-1 flex flex-col items-center gap-1">
+                                    <div class="w-full bg-orange-500 rounded-t-lg" id="bar-30" style="height: 80%"></div>
+                                    <span class="text-[9px] text-slate-500">+30m</span>
+                                    <span class="text-xs font-bold text-slate-300" id="risk-30-label">80%</span>
+                                </div>
+                                <div class="flex-1 flex flex-col items-center gap-1">
+                                    <div class="w-full bg-red-600 rounded-t-lg" id="bar-60" style="height: 95%"></div>
+                                    <span class="text-[9px] text-slate-500">+1h</span>
+                                    <span class="text-xs font-bold text-slate-300" id="risk-60-label">92%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Time Buttons -->
+                    <div class="flex gap-2 mb-2">
+                        <button class="time-btn flex-1 py-1 rounded bg-blue-600 text-white text-[9px] font-semibold transition" data-time="0">Now</button>
+                        <button class="time-btn flex-1 py-1 rounded bg-slate-800 text-slate-400 text-[9px] font-semibold hover:bg-slate-700 transition" data-time="10">+10m</button>
+                        <button class="time-btn flex-1 py-1 rounded bg-slate-800 text-slate-400 text-[9px] font-semibold hover:bg-slate-700 transition" data-time="30">+30m</button>
+                        <button class="time-btn flex-1 py-1 rounded bg-slate-800 text-slate-400 text-[9px] font-semibold hover:bg-slate-700 transition" data-time="60">+1h</button>
+                    </div>
+
+                    <!-- Upcoming Events -->
+                    <div class="flex-1 overflow-y-auto custom-scrollbar">
+                        <p class="text-[9px] text-slate-400 mb-1 uppercase font-bold">Upcoming Events</p>
+                        <div id="event-timeline" class="space-y-1">
+                            <div class="event-item info">
+                                <span class="event-time">--</span>
+                                <span class="event-text">No events scheduled.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p id="prediction-message" class="text-[9px] text-slate-500 text-center mt-1 pt-1 border-t border-slate-800">Current state: Normal operations.</p>
+                </div>
+            </div>
         </div>
 
-        <!-- RIGHT: AI Decision Panel (4 cols) -->
-        <div class="col-span-4 bg-slate-900 rounded-lg border border-slate-800 p-4 overflow-y-auto custom-scrollbar">
-            <div class="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
-                <h2 class="text-base font-bold text-slate-300 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                    </svg>
-                    AI DECISION
-                </h2>
-                <span class="text-xs text-slate-500 uppercase">Selected Risk</span>
-            </div>
-
-            <div id="default-state" class="flex flex-col items-center justify-center py-16 text-slate-500">
-                <svg class="w-12 h-12 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
-                </svg>
-                <p class="text-sm">Click a hotspot to view AI analysis</p>
-            </div>
-
-            <div id="selected-flight-card" class="hidden">
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h3 class="text-xl font-bold text-white" id="selected-flight-id">--</h3>
-                        <p class="text-xs text-slate-400" id="selected-flight-route">--</p>
-                    </div>
-                    <span class="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded uppercase" id="risk-badge">HIGH RISK</span>
-                </div>
-
-                <div class="flex gap-3 mb-4">
-                    <div class="relative w-20 h-20">
-                        <svg class="w-20 h-20 transform -rotate-90">
-                            <circle cx="40" cy="40" r="36" stroke="#1e293b" stroke-width="6" fill="none"></circle>
-                            <circle cx="40" cy="40" r="36" stroke="#ef4444" stroke-width="6" fill="none" stroke-dasharray="226" stroke-dashoffset="35" id="risk-circle"></circle>
+        <!-- RIGHT COLUMN: AI Decision Panel (4 cols) - FULL HEIGHT -->
+        <div class="col-span-4">
+            <div class="bg-slate-900 rounded-lg border border-slate-800 p-4 overflow-y-auto custom-scrollbar" style="height: 680px;">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
+                    <h2 class="text-base font-bold text-slate-300 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
                         </svg>
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <span class="text-2xl font-bold text-white" id="risk-score-value">85</span>
-                        </div>
-                    </div>
-                    <div class="flex-1 space-y-2">
-                        <div class="bg-slate-800 rounded-lg p-2 border border-slate-700">
-                            <p class="text-xs text-slate-400 mb-0.5">Predicted Delay</p>
-                            <p class="text-base font-bold text-red-500" id="predicted-delay">42m</p>
-                        </div>
-                        <div class="bg-slate-800 rounded-lg p-2 border border-slate-700">
-                            <p class="text-xs text-slate-400 mb-0.5">Confidence</p>
-                            <p class="text-base font-bold text-blue-500" id="confidence">87%</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mb-4 bg-slate-800/50 rounded-lg p-3 border border-slate-700">
-                    <h4 class="text-xs font-bold text-slate-400 mb-1.5 uppercase">Why at Risk</h4>
-                    <p class="text-xs text-slate-300 leading-relaxed" id="risk-cause">Loading...</p>
-                </div>
-
-                <div class="mb-4">
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="text-xs font-bold text-green-400 uppercase flex items-center gap-1">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        AI DECISION
+                    </h2>
+                    <div class="flex gap-2">
+                        <button onclick="toggleAIImpact()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded border border-slate-700 transition flex items-center gap-2">
+                            <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                             </svg>
-                            AI Recommendations
-                        </h4>
-                        <button onclick="selectAllRecommendations()" class="text-xs text-blue-400 hover:text-blue-300">Select All</button>
-                    </div>
-                    <div id="ai-recommendations" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                            AI Impact
+                        </button>
+                        <span class="text-xs text-slate-500 uppercase self-center">Selected Risk</span>
                     </div>
                 </div>
 
-                <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg p-3 mb-4 border border-slate-700">
-                    <p class="text-xs text-slate-400 mb-2 uppercase font-bold">Expected Impact</p>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="bg-slate-900/50 rounded p-2 text-center border border-slate-700">
-                            <p class="text-xs text-slate-500 mb-0.5">Delay Reduction</p>
-                            <p class="text-sm font-bold text-green-500" id="expected-delay-reduction">--</p>
-                        </div>
-                        <div class="bg-slate-900/50 rounded p-2 text-center border border-slate-700">
-                            <p class="text-xs text-slate-500 mb-0.5">Risk After</p>
-                            <p class="text-sm font-bold text-blue-500" id="expected-risk-after">--</p>
-                        </div>
-                    </div>
+                <div id="default-state" class="flex flex-col items-center justify-center py-16 text-slate-500">
+                    <svg class="w-12 h-12 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
+                    </svg>
+                    <p class="text-sm">Click a hotspot to view AI analysis</p>
                 </div>
 
-                <button onclick="applySelectedRecommendations()" id="apply-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg transition disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed">
-                    Select at least one recommendation
-                </button>
+                <div id="selected-flight-card" class="hidden">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="text-xl font-bold text-white" id="selected-flight-id">--</h3>
+                            <p class="text-xs text-slate-400" id="selected-flight-route">--</p>
+                        </div>
+                        <span class="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded uppercase" id="risk-badge">HIGH RISK</span>
+                    </div>
+
+                    <div class="flex gap-3 mb-4">
+                        <div class="relative w-20 h-20 flex-shrink-0">
+                            <svg class="w-20 h-20 transform -rotate-90">
+                                <circle cx="40" cy="40" r="36" stroke="#1e293b" stroke-width="6" fill="none"></circle>
+                                <circle cx="40" cy="40" r="36" stroke="#ef4444" stroke-width="6" fill="none" stroke-dasharray="226" stroke-dashoffset="35" id="risk-circle"></circle>
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <span class="text-2xl font-bold text-white" id="risk-score-value">85</span>
+                            </div>
+                        </div>
+                        <div class="flex-1 space-y-2">
+                            <div class="bg-slate-800 rounded-lg p-2 border border-slate-700">
+                                <p class="text-xs text-slate-400 mb-0.5">Predicted Delay</p>
+                                <p class="text-base font-bold text-red-500" id="predicted-delay">42m</p>
+                            </div>
+                            <div class="bg-slate-800 rounded-lg p-2 border border-slate-700">
+                                <p class="text-xs text-slate-400 mb-0.5">Confidence</p>
+                                <p class="text-base font-bold text-blue-500" id="confidence">87%</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                        <h4 class="text-xs font-bold text-slate-400 mb-1.5 uppercase">Why at Risk</h4>
+                        <p class="text-xs text-slate-300 leading-relaxed" id="risk-cause">Loading...</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-xs font-bold text-green-400 uppercase flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                                AI Recommendations
+                            </h4>
+                            <button onclick="selectAllRecommendations()" class="text-xs text-blue-400 hover:text-blue-300">Select All</button>
+                        </div>
+                        <div id="ai-recommendations" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg p-3 mb-4 border border-slate-700">
+                        <p class="text-xs text-slate-400 mb-2 uppercase font-bold">Expected Impact</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-slate-900/50 rounded p-2 text-center border border-slate-700">
+                                <p class="text-xs text-slate-500 mb-0.5">Delay Reduction</p>
+                                <p class="text-sm font-bold text-green-500" id="expected-delay-reduction">--</p>
+                            </div>
+                            <div class="bg-slate-900/50 rounded p-2 text-center border border-slate-700">
+                                <p class="text-xs text-slate-500 mb-0.5">Risk After</p>
+                                <p class="text-sm font-bold text-blue-500" id="expected-risk-after">--</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="applySelectedRecommendations()" id="apply-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg transition disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed">
+                        Select at least one recommendation
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- BOTTOM ROW: 3 Compact Panels -->
-    <div class="h-40 grid grid-cols-3 gap-3 px-3 pb-3">
-        
-        <!-- 1. Flight Risk List -->
-        <div class="bg-slate-900 rounded-lg border border-slate-800 p-3 overflow-hidden flex flex-col">
-            <h3 class="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
-                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                </svg>
-                FLIGHT RISK LIST
-                <span class="text-[9px] text-slate-500 font-normal ml-auto">Sorted by Priority</span>
-            </h3>
-            <div class="overflow-y-auto flex-1 custom-scrollbar text-xs">
-                <table class="w-full">
-                    <thead class="text-slate-500 border-b border-slate-800 sticky top-0 bg-slate-900">
-                        <tr>
-                            <th class="text-left py-1">FLIGHT</th>
-                            <th class="text-left">ROUTE</th>
-                            <th class="text-right">DELAY</th>
-                            <th class="text-right">RISK</th>
-                        </tr>
-                    </thead>
-                    <tbody id="flight-risk-table"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- 2. Prediction Horizon (with floating forecast container) -->
-        <div class="bg-slate-900 rounded-lg border border-slate-800 p-3 flex flex-col relative">
-            
-            <!-- FLOATING Risk Forecast Container (appears ABOVE the panel) -->
-            <div id="risk-forecast-floating" class="hidden">
-                <div class="bg-slate-800 rounded-lg p-3 border border-slate-700 shadow-2xl">
-                    <p class="text-xs text-slate-400 mb-3 uppercase font-bold">Risk Forecast</p>
-                    <div class="flex items-end justify-between gap-3 h-16">
-                        <div class="flex-1 flex flex-col items-center gap-1">
-                            <div class="w-full bg-green-500 rounded-t-lg" id="bar-now" style="height: 60%"></div>
-                            <span class="text-[9px] text-slate-500">Now</span>
-                            <span class="text-xs font-bold text-slate-300" id="risk-now-label">61%</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center gap-1">
-                            <div class="w-full bg-yellow-500 rounded-t-lg" id="bar-10" style="height: 65%"></div>
-                            <span class="text-[9px] text-slate-500">+10m</span>
-                            <span class="text-xs font-bold text-slate-300" id="risk-10-label">65%</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center gap-1">
-                            <div class="w-full bg-orange-500 rounded-t-lg" id="bar-30" style="height: 80%"></div>
-                            <span class="text-[9px] text-slate-500">+30m</span>
-                            <span class="text-xs font-bold text-slate-300" id="risk-30-label">80%</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center gap-1">
-                            <div class="w-full bg-red-600 rounded-t-lg" id="bar-60" style="height: 95%"></div>
-                            <span class="text-[9px] text-slate-500">+1h</span>
-                            <span class="text-xs font-bold text-slate-300" id="risk-60-label">92%</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex justify-between items-center mb-2">
-                <h3 class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+    <!-- AI IMPACT MODAL -->
+    <div class="modal-backdrop" id="modal-backdrop" onclick="toggleAIImpact()"></div>
+    <div id="ai-impact-modal" class="flex-col items-center justify-center p-4">
+        <div class="bg-slate-900 rounded-xl border border-slate-700 p-6 max-w-2xl w-full shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-300 flex items-center gap-2">
+                    <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
-                    PREDICTION HORIZON
+                    AI IMPACT - BEFORE vs AFTER
                 </h3>
-                <button onclick="toggleRiskForecast()" class="text-[9px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded border border-slate-700 transition">
-                    Show Forecast
+                <button onclick="toggleAIImpact()" class="text-slate-400 hover:text-white transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
                 </button>
             </div>
             
-            <!-- Time Buttons -->
-            <div class="flex gap-2 mb-2">
-                <button class="time-btn flex-1 py-1 rounded bg-blue-600 text-white text-[9px] font-semibold transition" data-time="0">Now</button>
-                <button class="time-btn flex-1 py-1 rounded bg-slate-800 text-slate-400 text-[9px] font-semibold hover:bg-slate-700 transition" data-time="10">+10m</button>
-                <button class="time-btn flex-1 py-1 rounded bg-slate-800 text-slate-400 text-[9px] font-semibold hover:bg-slate-700 transition" data-time="30">+30m</button>
-                <button class="time-btn flex-1 py-1 rounded bg-slate-800 text-slate-400 text-[9px] font-semibold hover:bg-slate-700 transition" data-time="60">+1h</button>
-            </div>
-
-            <!-- Upcoming Events (Always visible) -->
-            <div class="flex-1 overflow-y-auto custom-scrollbar">
-                <p class="text-[9px] text-slate-400 mb-1 uppercase font-bold">Upcoming Events</p>
-                <div id="event-timeline" class="space-y-1">
-                    <div class="event-item info">
-                        <span class="event-time">--</span>
-                        <span class="event-text">No events scheduled.</span>
-                    </div>
+            <div class="grid grid-cols-3 gap-4">
+                <div class="bg-gradient-to-br from-red-900/30 to-red-950/30 rounded-xl p-6 text-center border border-red-800/50">
+                    <p class="text-sm text-red-400 mb-2 uppercase font-bold tracking-wider">BEFORE AI</p>
+                    <p class="text-5xl font-bold text-red-500 mb-2" id="modal-before-delayed">5</p>
+                    <p class="text-sm text-slate-400 mb-3">Delayed Flights</p>
+                    <p class="text-2xl text-red-400 font-bold" id="modal-before-total">2h 18m</p>
+                    <p class="text-xs text-slate-500 mt-1">Total Delay</p>
                 </div>
-            </div>
-
-            <p id="prediction-message" class="text-[9px] text-slate-500 text-center mt-1 pt-1 border-t border-slate-800">Current state: Normal operations.</p>
-        </div>
-
-        <!-- 3. AI Impact (VERY COMPACT) -->
-        <div class="bg-slate-900 rounded-lg border border-slate-800 p-3 flex flex-col">
-            <h3 class="text-xs font-bold text-slate-300 mb-2">AI IMPACT</h3>
-            <div class="grid grid-cols-3 gap-2 flex-1">
-                <div class="bg-red-900/20 rounded p-2 text-center border border-red-900/30 flex flex-col justify-center">
-                    <p class="text-[8px] text-red-400 mb-0.5">BEFORE</p>
-                    <p class="text-lg font-bold text-red-500" id="before-delayed">5</p>
-                    <p class="text-[8px] text-slate-500">Delayed</p>
+                
+                <div class="bg-gradient-to-br from-green-900/30 to-green-950/30 rounded-xl p-6 text-center border border-green-800/50">
+                    <p class="text-sm text-green-400 mb-2 uppercase font-bold tracking-wider">AFTER AI</p>
+                    <p class="text-5xl font-bold text-green-500 mb-2" id="modal-after-delayed">2</p>
+                    <p class="text-sm text-slate-400 mb-3">Delayed Flights</p>
+                    <p class="text-2xl text-green-400 font-bold" id="modal-after-total">1h 30m</p>
+                    <p class="text-xs text-slate-500 mt-1">Total Delay</p>
                 </div>
-                <div class="bg-green-900/20 rounded p-2 text-center border border-green-900/30 flex flex-col justify-center">
-                    <p class="text-[8px] text-green-400 mb-0.5">AFTER</p>
-                    <p class="text-lg font-bold text-green-500" id="after-delayed">2</p>
-                    <p class="text-[8px] text-slate-500">Delayed</p>
-                </div>
-                <div class="bg-slate-800 rounded p-2 text-center border border-slate-700 flex flex-col justify-center">
-                    <p class="text-[8px] text-slate-400 mb-0.5">IMPACT</p>
-                    <p class="text-lg font-bold text-green-500">48m</p>
-                    <p class="text-[8px] text-slate-500">Saved</p>
+                
+                <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-center border border-slate-700">
+                    <p class="text-sm text-slate-400 mb-2 uppercase font-bold tracking-wider">IMPACT</p>
+                    <svg class="w-12 h-12 text-green-500 mx-auto my-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                    </svg>
+                    <p class="text-5xl font-bold text-green-500 mb-2">48m</p>
+                    <p class="text-sm text-slate-400">Total Time Saved</p>
+                    <p class="text-xs text-slate-500 mt-3">Delay Prevented</p>
                 </div>
             </div>
         </div>
