@@ -1,62 +1,89 @@
 import os
-import time
+from pathlib import Path
 import random
-import joblib
-import pandas as pd
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request
-from flask_socketio import SocketIO, emit
+from flask import Flask, jsonify, render_template
+from flask_socketio import SocketIO
 from dotenv import load_dotenv
+from loaders.backend_loader_delay_predictor import load_artifact as load_delay_artifact
+from loaders.backend_loader_delay_predictor import predict_delay
+from models.parking_predictor import ParkingCongestionPredictor
+from utils.data_loader import AirportDataLoader
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+MODELS_DIR = BASE_DIR / "models"
+
+
+def _log(message):
+    """Use ASCII-only startup logs so Windows console imports do not fail."""
+    print(message)
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(BASE_DIR / ".env")
+DEBUG_MODE = os.getenv("FLASK_DEBUG", "1").strip().lower() not in {"0", "false", "no"}
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Initialize Gemini API
-try:
-    from google import genai
-    gemini_api_key = os.getenv('GEMINI_API_KEY')
-    if gemini_api_key:
-        client = genai.Client(api_key=gemini_api_key)
-        GEMINI_AVAILABLE = True
-        print("✓ Gemini API configured successfully.")
-    else:
-        GEMINI_AVAILABLE = False
-        print("⚠ WARNING: GEMINI_API_KEY not found in .env file")
-except Exception as e:
-    GEMINI_AVAILABLE = False
-    print(f"⚠ Gemini API not available: {e}")
-
-# Initialize data loader
-from utils.data_loader import AirportDataLoader
-data_loader = AirportDataLoader('data')
-data_loader.load_all_datasets()
-print("✓ Airport data loaded successfully.")
-
-# Load the trained AI delay prediction model
-try:
-    ai_model = joblib.load('models/delay_predictor.pkl')
-    label_encoders = joblib.load('models/label_encoders.pkl')
-    print("✓ AI delay predictor model loaded successfully.")
-except Exception as e:
-    print(f"⚠ Could not load AI model: {e}")
-    ai_model = None
-    label_encoders = None
-
-# Initialize parking congestion predictor
-from models.parking_predictor import ParkingCongestionPredictor
+data_loader = AirportDataLoader(str(DATA_DIR))
 parking_predictor = ParkingCongestionPredictor()
+client = None
+GEMINI_AVAILABLE = False
+delay_artifact = None
+runtime_initialized = False
 
-try:
-    parking_predictor.load_model()
-    print("✓ Parking congestion predictor loaded successfully.")
-except Exception as e:
-    print(f"⚠ Training new parking predictor: {e}")
-    parking_predictor.train()
+
+def _is_werkzeug_reloader_parent():
+    return __name__ == '__main__' and DEBUG_MODE and os.environ.get('WERKZEUG_RUN_MAIN') != 'true'
+
+
+def initialize_runtime():
+    global GEMINI_AVAILABLE, client, delay_artifact, runtime_initialized
+
+    if runtime_initialized:
+        return
+
+    try:
+        import google.generativeai as genai
+        gemini_api_key = os.getenv('GEMINI_API_KEY')
+        if gemini_api_key:
+            genai.configure(api_key=gemini_api_key)
+            client = genai.GenerativeModel("gemini-2.5-flash")
+            GEMINI_AVAILABLE = True
+            _log("Gemini API configured successfully.")
+        else:
+            client = None
+            GEMINI_AVAILABLE = False
+            _log("WARNING: GEMINI_API_KEY not found in .env file")
+    except Exception as exc:
+        client = None
+        GEMINI_AVAILABLE = False
+        _log(f"WARNING: Gemini API not available: {exc}")
+
+    data_loader.load_all_datasets()
+    _log("Airport data loaded successfully.")
+
+    try:
+        delay_artifact = load_delay_artifact(MODELS_DIR / "airflow_delay_predictor_artifact.pkl")
+        _log("Delay predictor artifact loaded successfully.")
+    except Exception as exc:
+        delay_artifact = None
+        _log(f"WARNING: Could not load delay artifact: {exc}")
+
+    try:
+        parking_predictor.load_model()
+        _log("Parking congestion predictor loaded successfully.")
+    except Exception as exc:
+        _log(f"WARNING: Could not load parking artifact: {exc}")
+
+    runtime_initialized = True
+
+
+if not _is_werkzeug_reloader_parent():
+    initialize_runtime()
 
 # Global state for real-time simulation
 airport_state = {
@@ -64,44 +91,85 @@ airport_state = {
     "flights": [],
     "resources": {}
 }
+simulation_task = None
 
 # ============================================================================
 # AI HELPER FUNCTIONS
 # ============================================================================
 
-def get_ai_risk_score(flight):
-    if ai_model is None:
-        return flight.get('risk', 50)
+def _build_delay_artifact_features(flight):
+    day_of_week = str(flight.get("day_of_week", "Mon"))
+    scheduled_departure = str(flight.get("scheduled_departure", "10:00"))
+
     try:
-        data = {
-            'origin': [flight.get('origin', 'DEL')],
-            'destination': [flight.get('destination', 'SIN')],
-            'airline_code': [flight.get('airline_code', 'UK')],
-            'distance': [flight.get('distance', 1000)],
-            'time_of_day': [flight.get('time_of_day', 'Morning')],
-            'day_of_week': [flight.get('day_of_week', 'Mon')]
-        }
-        df = pd.DataFrame(data)
-        for col in ['origin', 'destination', 'airline_code', 'time_of_day', 'day_of_week']:
-            if col in label_encoders:
-                try:
-                    df[col] = label_encoders[col].transform(df[col].astype(str))
-                except ValueError:
-                    df[col] = 0 
-        prob = ai_model.predict_proba(df)[0][1]
-        return int(prob * 100)
-    except Exception as e:
-        print(f"AI prediction error: {e}")
+        departure_hour = int(scheduled_departure.split(":")[0])
+    except (TypeError, ValueError, IndexError):
+        departure_hour = 10
+
+    now = datetime.now()
+    origin = str(flight.get("origin", "DEL"))
+    destination = str(flight.get("destination", "SIN"))
+    gate = str(flight.get("gate", "T1"))
+    distance = int(flight.get("distance", 1000))
+    is_weekend = int(day_of_week.lower().startswith(("sat", "sun")))
+    is_peak_hour = int((7 <= departure_hour <= 9) or (17 <= departure_hour <= 19))
+    scheduled_duration = max(45, int(distance / 700 * 60))
+
+    return {
+        "airline_code": str(flight.get("airline_code", "UK")),
+        "origin": origin,
+        "destination": destination,
+        "route": f"{origin}-{destination}",
+        "aircraft_type": str(flight.get("aircraft_type", "A320")),
+        "terminal": gate[:2] if gate else "T1",
+        "gate": gate,
+        "is_international": 1,
+        "distance": distance,
+        "passenger_count": int(flight.get("passenger_count", 180)),
+        "maintenance_required": int(flight.get("maintenance_required", 0)),
+        "fuel_level": int(flight.get("fuel_level", 75)),
+        "baggage_count": int(flight.get("baggage_count", 120)),
+        "load_factor": float(flight.get("load_factor", 0.8)),
+        "time_of_day": str(flight.get("time_of_day", "Morning")),
+        "day_of_week": day_of_week,
+        "is_weekend": is_weekend,
+        "season": str(flight.get("season", "Summer")),
+        "flight_type": str(flight.get("flight_type", "Passenger")),
+        "departure_hour": departure_hour,
+        "departure_month": int(flight.get("departure_month", now.month)),
+        "departure_day": int(flight.get("departure_day", now.day)),
+        "arrival_hour": int(flight.get("arrival_hour", (departure_hour + 2) % 24)),
+        "is_peak_hour": is_peak_hour,
+        "scheduled_duration": int(flight.get("scheduled_duration", scheduled_duration)),
+    }
+
+
+def get_ai_risk_score(flight):
+    global delay_artifact
+
+    initialize_runtime()
+
+    if delay_artifact is None:
+        return flight.get('risk', 50)
+
+    try:
+        prediction = predict_delay(delay_artifact, _build_delay_artifact_features(flight))
+        return int(prediction["risk_percent"])
+    except Exception as exc:
+        _log(f"Delay artifact prediction error: {exc}")
+        delay_artifact = None
         return flight.get('risk', 50)
 
 def generate_ai_recommendation(flight):
-    if not GEMINI_AVAILABLE:
+    initialize_runtime()
+
+    if not GEMINI_AVAILABLE or client is None:
         return "<div class='text-slate-400'>AI Recommendations unavailable (API Key missing).</div>"
     try:
         prompt = f"Flight {flight['id']} has a {flight['risk']}% delay risk. Give 3 short operational recommendations as bullet points."
-        response = client.models.generate_content(model="gemini-2.0-flash-exp", contents=prompt)
+        response = client.generate_content(prompt)
         return response.text
-    except Exception as e:
+    except Exception:
         return "<div class='text-slate-400'>Error generating recommendations.</div>"
 
 # ============================================================================
@@ -159,6 +227,7 @@ def calibrate():
 @app.route('/api/flights')
 def get_flights():
     """Get current flight data with AI-calculated risk scores"""
+    initialize_runtime()
     flights = data_loader.get_current_flights(limit=15)
     resources = data_loader.get_resource_status()
     
@@ -171,6 +240,7 @@ def get_flights():
 @app.route('/api/parking_status')
 def get_parking_status():
     """Get current parking congestion status and predictions"""
+    initialize_runtime()
     current_hour = datetime.now().hour
     current_day = datetime.now().strftime('%A')
     day_type = 'weekend' if current_day in ['Saturday', 'Sunday'] else 'weekday'
@@ -210,6 +280,8 @@ def get_parking_status():
 
 def simulation_loop():
     """Background task for real-time simulation updates"""
+    initialize_runtime()
+
     while True:
         flights = data_loader.get_current_flights(limit=15)
         
@@ -229,8 +301,14 @@ def simulation_loop():
 @socketio.on('connect')
 def handle_connect():
     """Handle new WebSocket connection"""
-    print('✓ Client connected')
-    socketio.start_background_task(simulation_loop)
+    global simulation_task
+
+    initialize_runtime()
+    _log("Client connected")
+
+    # Keep a single simulation loop alive even if multiple clients connect.
+    if simulation_task is None:
+        simulation_task = socketio.start_background_task(simulation_loop)
 
 
 
@@ -239,10 +317,11 @@ def handle_connect():
 # ============================================================================
 
 if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("🛫 AIRFLOW TWIN - AI Airport Operations Digital Twin")
-    print("="*60)
-    print("Starting server on http://127.0.0.1:5000")
-    print("="*60 + "\n")
+    if not _is_werkzeug_reloader_parent():
+        print("\n" + "="*60)
+        print("AIRFLOW TWIN - AI Airport Operations Digital Twin")
+        print("="*60)
+        print("Starting server on http://127.0.0.1:5000")
+        print("="*60 + "\n")
     
-    socketio.run(app, debug=True, allow_unsafe_werkzeug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=DEBUG_MODE, allow_unsafe_werkzeug=True, host='0.0.0.0', port=5000)

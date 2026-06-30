@@ -1,16 +1,13 @@
+import joblib
 
-import pickle
-import pandas as pd
+from loaders.artifact_pipeline_utils import build_input_frame, predict, predict_proba
 
 
 def load_artifact(pkl_path):
-    with open(pkl_path, "rb") as f:
-        artifact = pickle.load(f)
-    return artifact
+    return joblib.load(pkl_path)
 
 
 def predict_congestion(artifact, airport_data):
-    pipeline = artifact["pipeline"]
     feature_columns = artifact["feature_columns"]
     label_map = artifact["config"]["label_map"]
 
@@ -19,13 +16,13 @@ def predict_congestion(artifact, airport_data):
     if missing:
         raise ValueError(f"Missing required fields: {missing}")
 
-    input_df = pd.DataFrame([airport_data])[feature_columns]
+    input_df = build_input_frame(feature_columns, airport_data)
 
-    prediction = int(pipeline.predict(input_df)[0])
-    probabilities = pipeline.predict_proba(input_df)[0]
+    prediction = int(predict(artifact, input_df)[0])
+    probabilities = predict_proba(artifact, input_df)[0]
 
     return {
-        "congestion_level": label_map[prediction],
+        "congestion_level": label_map.get(prediction, label_map.get(str(prediction), "Unknown")),
         "congestion_class": prediction,
         "probabilities": {
             "Low": round(float(probabilities[0]) * 100, 2),

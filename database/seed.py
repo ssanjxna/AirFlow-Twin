@@ -25,8 +25,9 @@ def seed_data(cursor, num_flights=300):
         flight_id = f"SYN-FLT-{i:04d}"
         flight_ids.append(flight_id)
 
+        flight_duration_minutes = random.randint(60, 360)
         scheduled_departure = now + timedelta(minutes=random.randint(30, 720))
-        scheduled_arrival = scheduled_departure - timedelta(minutes=random.randint(60, 360))
+        scheduled_arrival = scheduled_departure + timedelta(minutes=flight_duration_minutes)
 
         delay = random.choices(
             [0, 5, 10, 15, 25, 40, 60],
@@ -34,7 +35,9 @@ def seed_data(cursor, num_flights=300):
         )[0]
 
         actual_departure = scheduled_departure + timedelta(minutes=delay)
-        actual_arrival = scheduled_arrival + timedelta(minutes=random.randint(0, 20))
+        actual_arrival = actual_departure + timedelta(
+            minutes=flight_duration_minutes + random.randint(0, 20)
+        )
 
         cursor.execute("""
         INSERT INTO flights VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

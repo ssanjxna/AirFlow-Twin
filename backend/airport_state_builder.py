@@ -4,23 +4,31 @@
 # ============================================================
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
-
-# ------------------------------------------------------------
-# 1. Risk utilities
-# ------------------------------------------------------------
 
 def risk_level_from_percent(percent):
     percent = float(percent)
 
     if percent >= 75:
         return "Critical"
-    elif percent >= 50:
+    if percent >= 50:
         return "High"
-    elif percent >= 25:
+    if percent >= 25:
         return "Medium"
     return "Low"
+
+
+def _first_numeric(output, *keys):
+    for key in keys:
+        value = output.get(key)
+        if value is None:
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 def normalize_specialist_output(output):
@@ -38,19 +46,40 @@ def normalize_specialist_output(output):
             "risk_level": "Low"
         }
 
-    risk_probability = float(output.get("risk_probability", 0.0))
-    risk_percent = float(output.get("risk_percent", risk_probability * 100))
+    risk_probability = _first_numeric(
+        output,
+        "risk_probability",
+        "delay_probability",
+        "maintenance_delay_probability"
+    )
+    risk_percent = _first_numeric(
+        output,
+        "risk_percent",
+        "delay_risk_percent",
+        "maintenance_delay_percent",
+        "passenger_flow_risk_score"
+    )
+
+    if risk_percent is None and risk_probability is not None:
+        risk_percent = risk_probability * 100
+    if risk_probability is None and risk_percent is not None:
+        risk_probability = risk_percent / 100
+    if risk_probability is None:
+        risk_probability = 0.0
+    if risk_percent is None:
+        risk_percent = 0.0
 
     risk_probability = max(0.0, min(risk_probability, 1.0))
     risk_percent = max(0.0, min(risk_percent, 100.0))
+    risk_level = output.get(
+        "risk_level",
+        output.get("passenger_flow_risk_label", risk_level_from_percent(risk_percent))
+    )
 
     return {
         "risk_probability": round(risk_probability, 4),
         "risk_percent": round(risk_percent, 2),
-        "risk_level": output.get(
-            "risk_level",
-            risk_level_from_percent(risk_percent)
-        )
+        "risk_level": risk_level
     }
 
 
@@ -71,7 +100,7 @@ def build_airport_state(
 ):
     airport_state = {
         "flight_id": flight_id,
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
 
         "specialist_outputs": {
             "delay": normalize_specialist_output(delay_output),
@@ -101,10 +130,7 @@ def build_airport_state(
 # ------------------------------------------------------------
 
 def calculate_overall_airport_risk(specialist_outputs):
-    """
-    Weighted airport risk score.
-    Delay, gate, passenger flow, baggage, and staffing matter most.
-    """
+    """Weighted airport risk score."""
 
     weights = {
         "delay": 0.25,
@@ -154,70 +180,17 @@ def get_top_risk_sources(specialist_outputs, top_n=3):
     ]
 
 
-# ------------------------------------------------------------
-# 5. Example usage
-# Replace these with real specialist outputs from your models
-# ------------------------------------------------------------
+if __name__ == "__main__":
+    airport_state = build_airport_state(
+        flight_id="SQ-803",
+        delay_output={"risk_probability": 0.87, "risk_percent": 87, "risk_level": "Critical"},
+        maintenance_output={"risk_probability": 0.62, "risk_percent": 62, "risk_level": "High"},
+        passenger_flow_output={"risk_probability": 0.73, "risk_percent": 73, "risk_level": "High"},
+        baggage_output={"risk_probability": 0.54, "risk_percent": 54, "risk_level": "High"},
+        gate_events_output={"risk_probability": 0.91, "risk_percent": 91, "risk_level": "Critical"},
+        security_output={"risk_probability": 0.68, "risk_percent": 68, "risk_level": "High"},
+        staffing_output={"risk_probability": 0.64, "risk_percent": 64, "risk_level": "High"},
+        retail_output={"risk_probability": 0.44, "risk_percent": 44, "risk_level": "Medium"}
+    )
 
-delay_output = {
-    "risk_probability": 0.87,
-    "risk_percent": 87,
-    "risk_level": "Critical"
-}
-
-maintenance_output = {
-    "risk_probability": 0.62,
-    "risk_percent": 62,
-    "risk_level": "High"
-}
-
-passenger_flow_output = {
-    "risk_probability": 0.73,
-    "risk_percent": 73,
-    "risk_level": "High"
-}
-
-baggage_output = {
-    "risk_probability": 0.54,
-    "risk_percent": 54,
-    "risk_level": "High"
-}
-
-gate_events_output = {
-    "risk_probability": 0.91,
-    "risk_percent": 91,
-    "risk_level": "Critical"
-}
-
-security_output = {
-    "risk_probability": 0.68,
-    "risk_percent": 68,
-    "risk_level": "High"
-}
-
-staffing_output = {
-    "risk_probability": 0.64,
-    "risk_percent": 64,
-    "risk_level": "High"
-}
-
-retail_output = {
-    "risk_probability": 0.44,
-    "risk_percent": 44,
-    "risk_level": "Medium"
-}
-
-
-airport_state = build_airport_state(
-    flight_id="SQ-803",
-    delay_output=delay_output,
-    maintenance_output=maintenance_output,
-    passenger_flow_output=passenger_flow_output,
-    baggage_output=baggage_output,
-    gate_events_output=gate_events_output,
-    security_output=security_output,
-    staffing_output=staffing_output,
-    retail_output=retail_output
-)
-
-print(json.dumps(airport_state, indent=2))
+    print(json.dumps(airport_state, indent=2))

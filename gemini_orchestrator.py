@@ -255,7 +255,8 @@ def get_gemini_recommendation(airport_state, api_key=None):
         api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        raise ValueError("Missing GEMINI_API_KEY environment variable.")
+        print("\nMissing GEMINI_API_KEY. Using fallback recommendation.")
+        return fallback_recommendation(airport_state)
 
     genai.configure(api_key=api_key)
 

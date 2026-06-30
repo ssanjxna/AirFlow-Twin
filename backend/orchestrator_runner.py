@@ -1,14 +1,13 @@
-# orchestrator_runner.py
-import sys
 import os
+import sys
 
-sys.path.append(
-    os.path.dirname(
-        os.path.dirname(
-            os.path.abspath(__file__)
-        )
-    )
-)
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.append(REPO_ROOT)
+
+
+def _artifact_path(filename):
+    return os.path.join(REPO_ROOT, "models", filename)
 
 from loaders.backend_loader_delay_predictor import load_artifact as load_delay_artifact, predict_delay
 from loaders.backend_loader_maintenance_impact import load_artifact as load_maintenance_artifact, predict_maintenance_impact
@@ -19,21 +18,21 @@ from loaders.backend_loader_security_congestion import load_artifact as load_sec
 from loaders.backend_loader_staff_resource import load_artifact as load_staff_artifact, predict_staffing_risk
 from loaders.backend_loader_retail_dwell import load_artifact as load_retail_artifact, predict_retail_dwell_risk
 
-from airport_state_builder import build_airport_state
+from backend.airport_state_builder import build_airport_state
 
 
 # ----------------------------
 # 1. Load all artifacts once
 # ----------------------------
 
-delay_artifact = load_delay_artifact("models/airflow_delay_predictor_artifact.pkl")
-maintenance_artifact = load_maintenance_artifact("models/airflow_maintenance_impact_artifact.pkl")
-passenger_artifact = load_passenger_artifact("models/airflow_passenger_flow_artifact.pkl")
-baggage_artifact = load_baggage_artifact("models/airflow_baggage_risk_artifact.pkl")
-gate_artifact = load_gate_artifact("models/airflow_gate_events_artifact.pkl")
-security_artifact = load_security_artifact("models/airflow_security_congestion_artifact.pkl")
-staff_artifact = load_staff_artifact("models/airflow_staff_resource_artifact.pkl")
-retail_artifact = load_retail_artifact("models/airflow_retail_dwell_artifact.pkl")
+delay_artifact = load_delay_artifact(_artifact_path("airflow_delay_predictor_artifact.pkl"))
+maintenance_artifact = load_maintenance_artifact(_artifact_path("airflow_maintenance_impact_artifact.pkl"))
+passenger_artifact = load_passenger_artifact(_artifact_path("airflow_passenger_flow_artifact.pkl"))
+baggage_artifact = load_baggage_artifact(_artifact_path("airflow_baggage_risk_artifact.pkl"))
+gate_artifact = load_gate_artifact(_artifact_path("airflow_gate_event_artifact.pkl"))
+security_artifact = load_security_artifact(_artifact_path("airflow_security_congestion_artifact.pkl"))
+staff_artifact = load_staff_artifact(_artifact_path("airflow_staff_resource_artifact.pkl"))
+retail_artifact = load_retail_artifact(_artifact_path("airflow_retail_dwell_artifact.pkl"))
 
 
 # ----------------------------

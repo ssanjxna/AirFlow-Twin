@@ -1,18 +1,6 @@
-from gemini_orchestrator import get_gemini_recommendation
-from backend.airport_state_builder import build_airport_state
 import json
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-from google import genai
-
-client = genai.Client(
-    api_key=GEMINI_API_KEY
-)
+from gemini_orchestrator import get_gemini_recommendation
 
 airport_state = {
   "flight_id": "SQ-803",

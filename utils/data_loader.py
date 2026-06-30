@@ -9,30 +9,38 @@ class AirportDataLoader:
         self.gate_events_df = None
         self.maintenance_df = None
         self.passengers_df = None
+
+    def _read_dataset(self, filename):
+        dataset_path = os.path.join(self.data_dir, filename)
+
+        if not os.path.exists(dataset_path):
+            return None
+
+        with open(dataset_path, 'r', encoding='utf-8') as handle:
+            first_row = handle.readline().strip().split(',')
+
+        numeric_header = [str(index) for index in range(len(first_row))]
+
+        if first_row == numeric_header:
+            return pd.read_csv(dataset_path)
+
+        return pd.read_csv(dataset_path, header=None)
         
     def load_all_datasets(self):
-        # Load flights data (no header row)
-        flights_path = os.path.join(self.data_dir, 'flights.csv')
-        if os.path.exists(flights_path):
-            self.flights_df = pd.read_csv(flights_path, header=None)
+        self.flights_df = self._read_dataset('flights.csv')
+        if self.flights_df is not None:
             print(f"Loaded {len(self.flights_df)} flights")
         
-        # Load gate events
-        gate_path = os.path.join(self.data_dir, 'gate_events.csv')
-        if os.path.exists(gate_path):
-            self.gate_events_df = pd.read_csv(gate_path, header=None)
+        self.gate_events_df = self._read_dataset('gate_events.csv')
+        if self.gate_events_df is not None:
             print(f"Loaded {len(self.gate_events_df)} gate events")
         
-        # Load maintenance logs
-        maint_path = os.path.join(self.data_dir, 'maintenance_logs.csv')
-        if os.path.exists(maint_path):
-            self.maintenance_df = pd.read_csv(maint_path, header=None)
+        self.maintenance_df = self._read_dataset('maintenance_logs.csv')
+        if self.maintenance_df is not None:
             print(f"Loaded {len(self.maintenance_df)} maintenance records")
             
-        # Load passenger data
-        pass_path = os.path.join(self.data_dir, 'passengers.csv')
-        if os.path.exists(pass_path):
-            self.passengers_df = pd.read_csv(pass_path, header=None)
+        self.passengers_df = self._read_dataset('passengers.csv')
+        if self.passengers_df is not None:
             print(f"Loaded {len(self.passengers_df)} passenger records")
     
     def get_current_flights(self, limit=15):

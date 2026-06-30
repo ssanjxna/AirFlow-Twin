@@ -1,12 +1,10 @@
+import joblib
 
-import pickle
-import pandas as pd
+from loaders.artifact_pipeline_utils import build_input_frame, predict, predict_proba
 
 
 def load_artifact(pkl_path):
-    with open(pkl_path, "rb") as f:
-        artifact = pickle.load(f)
-    return artifact
+    return joblib.load(pkl_path)
 
 
 def map_delay_probability(probability):
@@ -37,7 +35,6 @@ def map_delay_probability(probability):
 
 
 def predict_delay(artifact, flight_data):
-    pipeline = artifact["pipeline"]
     feature_columns = artifact["feature_columns"]
 
     missing = [col for col in feature_columns if col not in flight_data]
@@ -45,17 +42,20 @@ def predict_delay(artifact, flight_data):
     if missing:
         raise ValueError(f"Missing required fields: {missing}")
 
-    input_df = pd.DataFrame([flight_data])[feature_columns]
+    input_df = build_input_frame(feature_columns, flight_data)
 
-    probability = float(pipeline.predict_proba(input_df)[0, 1])
-    prediction = int(pipeline.predict(input_df)[0])
+    probability = float(predict_proba(artifact, input_df)[0, 1])
+    prediction = int(predict(artifact, input_df)[0])
 
     risk = map_delay_probability(probability)
+    risk_percent = round(probability * 100, 2)
 
     return {
         "prediction": "Delayed" if prediction == 1 else "On-Time",
         "delay_probability": probability,
-        "delay_risk_percent": round(probability * 100, 2),
+        "delay_risk_percent": risk_percent,
+        "risk_probability": round(probability, 4),
+        "risk_percent": risk_percent,
         "risk_level": risk["risk_level"],
         "priority": risk["priority"],
         "model_version": artifact["model_version"],
