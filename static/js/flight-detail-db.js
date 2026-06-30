@@ -171,7 +171,12 @@ async function applySelectedRecommendationsDetail() {
             expected_impact: data.expected_impact,
         };
         renderFlightDetailDb(flightDetailDbData);
-        refreshShellMetrics();
+        try {
+            await refreshRememberedLiveState();
+        } catch (refreshError) {
+            console.error('Error refreshing shared live state:', refreshError);
+            refreshShellMetrics();
+        }
 
         btn.textContent = 'Applied Successfully';
         btn.classList.add('bg-green-600');

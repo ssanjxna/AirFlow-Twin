@@ -15,7 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initHorizonLivePage() {
     bindHorizonTimeButtons();
     syncHorizonTimeButtons();
+    hydrateHorizonFromRememberedSnapshot();
     await loadHorizonLiveData();
+    setInterval(loadHorizonLiveData, 30000);
 }
 
 async function loadHorizonLiveData() {
@@ -24,6 +26,7 @@ async function loadHorizonLiveData() {
             fetchLiveJson('/api/flights?limit=24'),
             fetchLiveJson('/api/parking_status'),
         ]);
+        cacheLiveSnapshot(flightsData, parkingData);
         horizonLiveFlights = flightsData.flights || [];
         horizonLiveParking = parkingData;
         horizonLiveEvents = buildHorizonEvents(horizonLiveFlights, horizonLiveParking);
@@ -35,6 +38,21 @@ async function loadHorizonLiveData() {
     } catch (error) {
         console.error('Error loading horizon data:', error);
     }
+}
+
+function hydrateHorizonFromRememberedSnapshot() {
+    const snapshot = loadRememberedLiveSnapshot();
+    if (!snapshot) return false;
+
+    horizonLiveFlights = snapshot.flights || [];
+    horizonLiveParking = snapshot.parking || null;
+    horizonLiveEvents = snapshot.events || buildHorizonEvents(horizonLiveFlights, horizonLiveParking);
+    rememberHorizonEvents(horizonLiveEvents);
+    applyHeaderSummary(snapshot.summary);
+
+    renderHorizonLiveBars();
+    renderHorizonLiveTimeline();
+    return true;
 }
 
 function bindHorizonTimeButtons() {
@@ -132,10 +150,7 @@ function renderHorizonLiveTimeline() {
                 </button>
             </div>
         `;
-        item.onclick = () => {
-            rememberSelectedHorizonEvent(event);
-            window.location.href = `/event/${index}`;
-        };
+        item.onclick = () => navigateToEventDetail(event, index);
         timeline.appendChild(item);
     });
 

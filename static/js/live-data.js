@@ -42,6 +42,34 @@ function getRiskStrokeColor(risk) {
     return '#22c55e';
 }
 
+function getRiskPalette(risk) {
+    if (risk >= 80) {
+        return {
+            color: '#ef4444',
+            glow: 'rgba(239, 68, 68, 0.95)',
+            fillStrong: 'rgba(239, 68, 68, 0.50)',
+            fillSoft: 'rgba(239, 68, 68, 0.20)',
+            labelClass: 'bg-red-600',
+        };
+    }
+    if (risk >= 50) {
+        return {
+            color: '#f97316',
+            glow: 'rgba(249, 115, 22, 0.9)',
+            fillStrong: 'rgba(249, 115, 22, 0.42)',
+            fillSoft: 'rgba(249, 115, 22, 0.18)',
+            labelClass: 'bg-orange-600',
+        };
+    }
+    return {
+        color: '#22c55e',
+        glow: 'rgba(34, 197, 94, 0.85)',
+        fillStrong: 'rgba(34, 197, 94, 0.35)',
+        fillSoft: 'rgba(34, 197, 94, 0.14)',
+        labelClass: 'bg-green-600',
+    };
+}
+
 function updateCircularProgress(circleId, percent) {
     const circle = document.getElementById(circleId);
     if (!circle) return;
@@ -148,6 +176,9 @@ function buildHorizonEvents(flights, parkingData) {
     const eventOffsets = [15, 30, 60];
     const events = sortedFlights.slice(0, 3).map((flight, index) => ({
         id: `flight-${flight.id}`,
+        entityType: 'flight',
+        entityId: flight.id,
+        detailUrl: `/flight/${flight.id}`,
         time: `+${eventOffsets[index]}m`,
         minutesAhead: eventOffsets[index],
         text: `${flight.id} turnaround risk at ${flight.gate}`,
@@ -161,6 +192,9 @@ function buildHorizonEvents(flights, parkingData) {
     if (parkingData && ['high', 'critical'].includes(String(parkingData.status || '').toLowerCase())) {
         events.unshift({
             id: 'parking-pressure',
+            entityType: 'parking',
+            entityId: 'PARKING',
+            detailUrl: '/parking',
             time: '+10m',
             minutesAhead: 10,
             text: 'Parking congestion building near terminal access',
@@ -168,7 +202,7 @@ function buildHorizonEvents(flights, parkingData) {
             risk: Math.round(parkingData.congestion_score || 0),
             relatedFlightId: 'PARKING',
             impact: parkingData.cause || 'Arrival traffic is creating parking pressure.',
-            recommendations: buildParkingRecommendationCards(parkingData.recommendations, Math.round(parkingData.congestion_score || 0)),
+            recommendations: parkingData.recommendation_cards || buildParkingRecommendationCards(parkingData.recommendations, Math.round(parkingData.congestion_score || 0)),
         });
     }
 
@@ -199,9 +233,106 @@ function loadSelectedHorizonEvent() {
     }
 }
 
+function rememberLiveSnapshot(snapshot) {
+    sessionStorage.setItem('airflowLiveSnapshot', JSON.stringify(snapshot || null));
+}
+
+function loadRememberedLiveSnapshot() {
+    try {
+        return JSON.parse(sessionStorage.getItem('airflowLiveSnapshot') || 'null');
+    } catch (error) {
+        return null;
+    }
+}
+
+function getEventEntityType(event) {
+    if (!event) return null;
+    if (event.entityType) return event.entityType;
+    return event.relatedFlightId === 'PARKING' ? 'parking' : 'flight';
+}
+
+function getEventEntityId(event) {
+    if (!event) return null;
+    if (event.entityId) return event.entityId;
+    return event.relatedFlightId || null;
+}
+
+function isSameEventEntity(leftEvent, rightEvent) {
+    return (
+        getEventEntityType(leftEvent) === getEventEntityType(rightEvent)
+        && getEventEntityId(leftEvent) === getEventEntityId(rightEvent)
+    );
+}
+
+function cacheLiveSnapshot(flightsData, parkingData) {
+    const flights = flightsData?.flights || [];
+    const summary = flightsData?.summary || null;
+    const events = buildHorizonEvents(flights, parkingData);
+    const snapshot = {
+        flights,
+        parking: parkingData || null,
+        summary,
+        events,
+        cachedAt: Date.now(),
+    };
+
+    rememberLiveSnapshot(snapshot);
+    rememberHorizonEvents(events);
+
+    const selectedEvent = loadSelectedHorizonEvent();
+    if (selectedEvent) {
+        const refreshedSelected = events.find((event) => isSameEventEntity(event, selectedEvent));
+        if (refreshedSelected) {
+            rememberSelectedHorizonEvent(refreshedSelected);
+        }
+    }
+
+    return snapshot;
+}
+
+async function refreshRememberedLiveState() {
+    const [flightsData, parkingData] = await Promise.all([
+        fetchLiveJson('/api/flights?limit=24'),
+        fetchLiveJson('/api/parking_status'),
+    ]);
+    const snapshot = cacheLiveSnapshot(flightsData, parkingData);
+    applyHeaderSummary(snapshot.summary);
+    return snapshot;
+}
+
+function navigateToEventDetail(event, index = 0) {
+    rememberSelectedHorizonEvent(event);
+
+    if (event?.detailUrl) {
+        window.location.href = event.detailUrl;
+        return;
+    }
+
+    if (event?.relatedFlightId === 'PARKING') {
+        window.location.href = '/parking';
+        return;
+    }
+
+    if (event?.relatedFlightId) {
+        window.location.href = `/flight/${event.relatedFlightId}`;
+        return;
+    }
+
+    window.location.href = `/event/${index}`;
+}
+
 function refreshActiveLivePage() {
+    if (document.getElementById('hotspots-container') && typeof hydrateDashboardFromRememberedSnapshot === 'function') {
+        hydrateDashboardFromRememberedSnapshot();
+    }
+    if (document.getElementById('horizon-event-timeline') && typeof hydrateHorizonFromRememberedSnapshot === 'function') {
+        hydrateHorizonFromRememberedSnapshot();
+    }
     if (document.getElementById('detail-flight-id') && typeof initFlightDetailDbPage === 'function') {
         initFlightDetailDbPage();
+    }
+    if (document.getElementById('event-detail-title') && typeof initEventDetailLivePage === 'function') {
+        initEventDetailLivePage();
     }
     if (document.getElementById('parking-badge') && typeof initParkingDetailLivePage === 'function') {
         initParkingDetailLivePage();

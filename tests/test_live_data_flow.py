@@ -7,7 +7,6 @@ import pytest
 
 @pytest.fixture
 def live_client(monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     db_uri = "file:airflow_test?mode=memory&cache=shared"
     keeper = sqlite3.connect(db_uri, uri=True)
     keeper.row_factory = sqlite3.Row

@@ -159,7 +159,12 @@ async function applyParkingRecommendations() {
 
         parkingLiveData = data;
         renderParkingDetailLive(data);
-        refreshShellMetrics();
+        try {
+            await refreshRememberedLiveState();
+        } catch (refreshError) {
+            console.error('Error refreshing shared live state:', refreshError);
+            refreshShellMetrics();
+        }
 
         btn.textContent = 'Applied Successfully';
         btn.classList.add('bg-green-600');

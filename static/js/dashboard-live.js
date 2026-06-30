@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initDashboardLive() {
     bindDashboardTimeButtons();
     syncDashboardTimeButtons();
+    hydrateDashboardFromRememberedSnapshot();
     await loadDashboardLiveData();
     setInterval(loadDashboardLiveData, 30000);
 }
@@ -27,6 +28,7 @@ async function loadDashboardLiveData() {
         ]);
         dashboardLiveParking = parkingData;
         applyHeaderSummary(flightsData.summary);
+        cacheLiveSnapshot(flightsData, parkingData);
 
         const allFlights = [...(flightsData.flights || [])].sort((a, b) => b.risk - a.risk);
         dashboardLiveFlights = allFlights.slice(0, 5);
@@ -41,6 +43,25 @@ async function loadDashboardLiveData() {
     } catch (error) {
         console.error('Error loading live dashboard data:', error);
     }
+}
+
+function hydrateDashboardFromRememberedSnapshot() {
+    const snapshot = loadRememberedLiveSnapshot();
+    if (!snapshot) return false;
+
+    dashboardLiveParking = snapshot.parking || null;
+    applyHeaderSummary(snapshot.summary);
+
+    const allFlights = [...(snapshot.flights || [])].sort((a, b) => b.risk - a.risk);
+    dashboardLiveFlights = allFlights.slice(0, 5);
+    dashboardLiveEvents = snapshot.events || buildHorizonEvents(allFlights, dashboardLiveParking);
+
+    renderDashboardLiveHotspots(dashboardLiveFlights);
+    renderDashboardLiveFlightSummary(allFlights.slice(0, 6));
+    renderDashboardLiveEvents(dashboardLiveEvents);
+    renderDashboardPredictionMessage(dashboardLiveEvents);
+    updateHighRiskCount(allFlights);
+    return true;
 }
 
 function bindDashboardTimeButtons() {
@@ -92,12 +113,18 @@ function renderDashboardLiveHotspots(flights) {
     });
 
     const parkingZone = document.createElement('div');
+    const parkingRisk = Math.round(dashboardLiveParking?.congestion_score || 0);
+    const parkingOccupancy = Math.round(dashboardLiveParking?.current_occupancy_rate || 0);
+    const palette = getRiskPalette(parkingRisk);
     parkingZone.className = 'parking-zone';
     parkingZone.style.left = PARKING_ZONE_POSITION.x + '%';
     parkingZone.style.top = PARKING_ZONE_POSITION.y + '%';
     parkingZone.style.width = '250px';
     parkingZone.style.height = '180px';
-    parkingZone.innerHTML = '<div class="parking-label">PARKING CONGESTION RISK</div>';
+    parkingZone.style.borderColor = palette.color;
+    parkingZone.style.background = `radial-gradient(ellipse at center, ${palette.fillStrong} 0%, ${palette.fillSoft} 50%, transparent 70%)`;
+    parkingZone.style.boxShadow = `0 0 60px ${palette.glow}, inset 0 0 30px ${palette.fillSoft}`;
+    parkingZone.innerHTML = `<div class="parking-label">${parkingRisk}% PARKING RISK<br>${parkingOccupancy}% occupancy</div>`;
     parkingZone.onclick = (event) => {
         event.stopPropagation();
         window.location.href = '/parking';
@@ -146,10 +173,7 @@ function renderDashboardLiveEvents(events) {
             </div>
             <div class="text-slate-300 font-medium">${event.text}</div>
         `;
-        item.onclick = () => {
-            rememberSelectedHorizonEvent(event);
-            window.location.href = `/event/${index}`;
-        };
+        item.onclick = () => navigateToEventDetail(event, index);
         timeline.appendChild(item);
     });
 }
