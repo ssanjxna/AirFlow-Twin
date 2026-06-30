@@ -1,4 +1,35 @@
-/* Custom Scrollbar */
+/* Make page scrollable */
+html, body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom scrollbar for main page */
+body::-webkit-scrollbar {
+    width: 8px;
+}
+
+body::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+body::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
+
+/* Custom Scrollbar for internal elements */
 .custom-scrollbar::-webkit-scrollbar { 
     width: 6px; 
     height: 6px;
@@ -14,7 +45,7 @@
     background: #475569; 
 }
 
-/* Parking Congestion Zone - Bigger like prototype */
+/* Parking Congestion Zone */
 .parking-zone {
     position: absolute;
     cursor: pointer;
@@ -36,7 +67,7 @@
 
 .parking-label {
     position: absolute;
-    bottom: -50px;  /* Label at bottom like prototype */
+    bottom: -50px;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(239, 68, 68, 0.95);
@@ -64,6 +95,66 @@
     }
 }
 
+/* Event Action Button */
+.event-action-btn {
+    margin-left: auto;
+    padding: 6px 12px;
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    border-radius: 6px;
+    color: #60a5fa;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.event-action-btn:hover {
+    background: rgba(59, 130, 246, 0.3);
+    border-color: rgba(59, 130, 246, 0.7);
+    color: #93c5fd;
+    transform: scale(1.05);
+}
+
+/* Event Display in AI Panel */
+.event-header-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+}
+
+.event-header-time {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.event-impact-box {
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 12px 0;
+}
+
+.event-impact-label {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+}
+
+.event-impact-text {
+    font-size: 0.95rem;
+    color: #e2e8f0;
+    line-height: 1.5;
+}
 
 /* Hotspots */
 .hotspot {
@@ -193,6 +284,7 @@
     font-size: 11px;
     color: #cbd5e1;
     line-height: 1.4;
+    flex: 1;
 }
 
 /* Recommendation Cards */

@@ -1,3 +1,4 @@
+// Map Coordinates
 const hotspotPositions = {
     'UK-633': { x: 31, y: 8 },
     'BA-6017': { x: 60, y: 18 },
@@ -6,7 +7,6 @@ const hotspotPositions = {
     'SG-1280': { x: 77, y: 27 },
     'PARKING': { x: 27, y: 77 } 
 };
-
 
 // Scenario Engine
 const futureScenarios = {
@@ -18,78 +18,108 @@ const futureScenarios = {
     },
     10: {
         events: [
-            { time: '+5m', text: 'BA-6017 taxiing to gate', type: 'info' }
+            { 
+                time: '+5m', 
+                text: 'BA-6017 taxiing to gate', 
+                type: 'info',
+                risk: 65,
+                relatedFlightId: 'BA-6017', // Link to flight
+                impact: 'Minor delay risk due to gate assignment',
+                recommendations: [
+                    { id: 'evt_rec1', text: 'Assign Gate B3 (closest available)', impact: '-5m delay', riskReduction: 10, delayReduction: 5 },
+                    { id: 'evt_rec2', text: 'Pre-position baggage team at Gate B3', impact: '-3m delay', riskReduction: 5, delayReduction: 3 }
+                ]
+            }
         ],
         message: "Minor ground movements expected.",
-        modifiers: {
-            'BA-6017': { risk: 65, delay: 32 }
-        },
+        modifiers: { 'BA-6017': { risk: 65, delay: 32 } },
         newFlights: []
     },
     30: {
         events: [
-            { time: '+15m', text: '⚠️ Maintenance Crew Shift Change', type: 'warning' },
-            { time: '+25m', text: '✈️ New Arrival: EK-9988 (A380)', type: 'critical' },
-            { time: '+28m', text: 'Parking capacity reaches 85%', type: 'warning' }
+            { 
+                time: '+15m', 
+                text: '⚠️ Maintenance Crew Shift Change', 
+                type: 'warning',
+                risk: 75,
+                relatedFlightId: 'SG-1280', // Link to flight
+                impact: 'Crew 2 leaving, Crew 3 not yet arrived. SG-1280 maintenance incomplete.',
+                recommendations: [
+                    { id: 'evt_rec1', text: 'Delay Crew 2 departure by 45 minutes', impact: '-20m delay', riskReduction: 25, delayReduction: 20 },
+                    { id: 'evt_rec2', text: 'Pre-authorize Crew 3 overtime', impact: '-15m delay', riskReduction: 20, delayReduction: 15 },
+                    { id: 'evt_rec3', text: 'Reassign Crew 1 from completed flight', impact: '-10m delay', riskReduction: 15, delayReduction: 10 }
+                ]
+            },
+            { 
+                time: '+25m', 
+                text: '✈️ New Arrival: EK-9988 (A380)', 
+                type: 'critical',
+                risk: 85,
+                relatedFlightId: 'EK-9988', // Link to flight
+                impact: 'Large aircraft arriving during shift change. Limited ground crew available.',
+                recommendations: [
+                    { id: 'evt_rec1', text: 'Pre-assign Crew B before shift change completes', impact: '-20m delay', riskReduction: 25, delayReduction: 20 },
+                    { id: 'evt_rec2', text: 'Route to Gate A4 (closest to active crew)', impact: '-12m delay', riskReduction: 15, delayReduction: 12 },
+                    { id: 'evt_rec3', text: 'Priority baggage handling team allocation', impact: '-8m delay', riskReduction: 10, delayReduction: 8 }
+                ]
+            },
+            { 
+                time: '+28m', 
+                text: 'Parking capacity reaches 85%', 
+                type: 'warning',
+                risk: 70,
+                relatedFlightId: null, // No specific flight
+                impact: 'Incoming passenger vehicles will cause congestion at terminal access.',
+                recommendations: [
+                    { id: 'evt_rec1', text: 'Open overflow parking P3 and P4 immediately', impact: '-30% congestion', riskReduction: 30, delayReduction: 15 },
+                    { id: 'evt_rec2', text: 'Activate dynamic signage to redirect traffic', impact: '-20% congestion', riskReduction: 20, delayReduction: 10 }
+                ]
+            }
         ],
         message: "Risk increasing due to crew shift change and incoming traffic.",
-        modifiers: {
-            'BA-6017': { risk: 75, delay: 35, reason: 'Congestion from incoming EK-9988' },
-            'SG-1280': { risk: 85, delay: 45, reason: 'Shift change delay' }
-        },
-        newFlights: [
-            { id: 'EK-9988', origin: 'DXB', destination: 'LHR', risk: 85, delay: 45, status: 'Approaching', aircraft_type: 'A380' }
-        ]
+        modifiers: { 'BA-6017': { risk: 75, delay: 35 }, 'SG-1280': { risk: 85, delay: 45 } },
+        newFlights: [{ id: 'EK-9988', origin: 'DXB', destination: 'LHR', risk: 85, delay: 45 }]
     },
     60: {
         events: [
-            { time: '+40m', text: '⛈️ Weather Warning: Heavy rain at DOH', type: 'critical' },
-            { time: '+50m', text: 'Ground operations slowed by 40%', type: 'warning' },
-            { time: '+55m', text: '3 flights rerouted to alternate gates', type: 'info' }
+            { 
+                time: '+40m', 
+                text: '⛈️ Weather Warning: Heavy rain at DOH', 
+                type: 'critical',
+                risk: 92,
+                relatedFlightId: 'EK-9988',
+                impact: 'Flights from Doha delayed. Ground operations slowed by 40%.',
+                recommendations: [
+                    { id: 'evt_rec1', text: 'Reroute DOH flights to alternate gates', impact: '-25m delay', riskReduction: 30, delayReduction: 25 },
+                    { id: 'evt_rec2', text: 'Deploy additional ground staff', impact: '-15m delay', riskReduction: 20, delayReduction: 15 }
+                ]
+            }
         ],
-        message: "Severe weather impacting incoming flights from Doha.",
-        modifiers: {
-            'EK-9988': { risk: 92, delay: 60, reason: 'Weather delay + Ground congestion' },
-            'SG-1280': { risk: 88, delay: 50, reason: 'Weather compounding existing delay' }
-        },
+        message: "Severe weather impacting incoming flights.",
+        modifiers: { 'EK-9988': { risk: 92, delay: 60 } },
         newFlights: []
     }
 };
 
-// Risk forecast data
 const riskForecasts = {
-    'UK-633': [61, 63, 70, 75],
-    'BA-6017': [61, 65, 75, 82],
-    'BA-7303': [61, 62, 68, 74],
-    'KL-7243': [36, 38, 45, 52],
-    'SG-1280': [80, 82, 85, 88],
-    'EK-9988': [0, 0, 85, 92],
-    'PARKING': [60, 65, 75, 85]
+    'UK-633': [61, 63, 70, 75], 'BA-6017': [61, 65, 75, 82], 'BA-7303': [61, 62, 68, 74],
+    'KL-7243': [36, 38, 45, 52], 'SG-1280': [80, 82, 85, 88], 'EK-9988': [0, 0, 85, 92], 'PARKING': [60, 65, 75, 85]
 };
 
-// Recommendations database
 const recommendationsDB = {
     'SG-1280': [
-        { id: 'rec1', text: 'Reassign maintenance crew from KL-7243 (lower priority)', impact: '-15m delay, -20% risk', riskReduction: 20, delayReduction: 15 },
-        { id: 'rec2', text: 'Open Overflow Parking P3 for passenger traffic', impact: '-8m delay, -10% risk', riskReduction: 10, delayReduction: 8 },
-        { id: 'rec3', text: 'Activate dynamic signage to route traffic', impact: '-5m delay, -5% risk', riskReduction: 5, delayReduction: 5 },
-        { id: 'rec4', text: 'Pre-position fuel truck at Gate A12', impact: '-3m delay, -3% risk', riskReduction: 3, delayReduction: 3 }
+        { id: 'rec1', text: 'Reassign maintenance crew from KL-7243', impact: '-15m delay, -20% risk', riskReduction: 20, delayReduction: 15 },
+        { id: 'rec2', text: 'Open Overflow Parking P3', impact: '-8m delay, -10% risk', riskReduction: 10, delayReduction: 8 }
     ],
     'EK-9988': [
-        { id: 'rec1', text: 'Pre-assign Crew B before shift change completes', impact: '-20m delay, -25% risk', riskReduction: 25, delayReduction: 20 },
-        { id: 'rec2', text: 'Route to Gate A4 (closest to active crew)', impact: '-12m delay, -15% risk', riskReduction: 15, delayReduction: 12 },
-        { id: 'rec3', text: 'Priority baggage handling team allocation', impact: '-8m delay, -10% risk', riskReduction: 10, delayReduction: 8 }
+        { id: 'rec1', text: 'Pre-assign Crew B', impact: '-20m delay, -25% risk', riskReduction: 25, delayReduction: 20 }
     ],
     'PARKING': [
-        { id: 'rec1', text: 'Open overflow parking P3 and P4 immediately', impact: '-30% congestion', riskReduction: 30, delayReduction: 15 },
-        { id: 'rec2', text: 'Activate dynamic signage to redirect traffic', impact: '-20% congestion', riskReduction: 20, delayReduction: 10 },
-        { id: 'rec3', text: 'Deploy staff to direct traffic flow', impact: '-15% congestion', riskReduction: 15, delayReduction: 8 },
-        { id: 'rec4', text: 'Coordinate with ride-share for alternative drop-off', impact: '-10% congestion', riskReduction: 10, delayReduction: 5 }
+        { id: 'rec1', text: 'Open overflow parking P3 and P4', impact: '-30% congestion', riskReduction: 30, delayReduction: 15 },
+        { id: 'rec2', text: 'Activate dynamic signage', impact: '-20% congestion', riskReduction: 20, delayReduction: 10 }
     ],
     'default': [
-        { id: 'rec1', text: 'Reassign maintenance crew to this flight', impact: '-12m delay, -15% risk', riskReduction: 15, delayReduction: 12 },
-        { id: 'rec2', text: 'Open overflow parking for passenger traffic', impact: '-8m delay, -10% risk', riskReduction: 10, delayReduction: 8 },
-        { id: 'rec3', text: 'Activate dynamic traffic signage', impact: '-5m delay, -5% risk', riskReduction: 5, delayReduction: 5 }
+        { id: 'rec1', text: 'Reassign maintenance crew', impact: '-12m delay, -15% risk', riskReduction: 15, delayReduction: 12 }
     ]
 };
 
@@ -99,14 +129,16 @@ let selectedRecommendations = new Set();
 let currentFlights = [];
 let parkingUpdateInterval;
 let currentParkingData = null;
+let appliedRecommendations = new Set();
+let currentRiskValue = 0;
+let currentContext = null;
+let currentEventIndex = null;
 
 async function initDashboard() {
     await loadAndRenderData();
     await updateParkingStatus();
     setupTimeControls();
-    setupMapScroll();
     updateCurrentTime();
-    
     parkingUpdateInterval = setInterval(updateParkingStatus, 30000);
     setInterval(updateCurrentTime, 1000);
 }
@@ -118,107 +150,20 @@ async function loadAndRenderData() {
         let flights = baseData.flights.filter(f => hotspotPositions[f.id]).slice(0, 5);
         
         const scenario = futureScenarios[currentTimeStep];
-        
         if (scenario.modifiers) {
-            flights = flights.map(f => {
-                if (scenario.modifiers[f.id]) {
-                    return { ...f, ...scenario.modifiers[f.id] };
-                }
-                return f;
-            });
+            flights = flights.map(f => scenario.modifiers[f.id] ? { ...f, ...scenario.modifiers[f.id] } : f);
         }
-        
         if (scenario.newFlights) {
-            scenario.newFlights.forEach(newF => {
-                if (!flights.find(f => f.id === newF.id)) {
-                    flights.push(newF);
-                }
-            });
+            scenario.newFlights.forEach(newF => { if (!flights.find(f => f.id === newF.id)) flights.push(newF); });
         }
         
         currentFlights = flights;
-        
         updateEventTimeline(scenario);
         updateRiskForecast();
         renderHotspots(flights);
         renderFlightRiskTable(flights);
         updateHighRiskCount(flights);
-        
-        if (currentTimeStep > 0 && !selectedFlightId) {
-            const highestRisk = [...flights].sort((a, b) => b.risk - a.risk)[0];
-            if (highestRisk && highestRisk.risk > 70) {
-                selectFlight(highestRisk);
-            }
-        }
-
-    } catch (error) {
-        console.error('Error loading data:', error);
-    }
-}
-
-function updateEventTimeline(scenario) {
-    const timeline = document.getElementById('event-timeline');
-    if (!timeline) return;
-    
-    timeline.innerHTML = '';
-    
-    if (!scenario.events || scenario.events.length === 0) {
-        timeline.innerHTML = `
-            <div class="event-item info">
-                <span class="event-time">--</span>
-                <span class="event-text">No events scheduled in the next hour.</span>
-            </div>
-        `;
-    } else {
-        scenario.events.forEach(evt => {
-            const div = document.createElement('div');
-            div.className = `event-item ${evt.type || 'info'}`;
-            div.innerHTML = `
-                <span class="event-time">${evt.time || '--'}</span>
-                <span class="event-text">${evt.text || 'Event'}</span>
-            `;
-            timeline.appendChild(div);
-        });
-    }
-    
-    const msgDiv = document.getElementById('prediction-message');
-    if (msgDiv) {
-        msgDiv.textContent = scenario.message || 'Viewing current state.';
-    }
-}
-
-function updateRiskForecast() {
-    const flightId = selectedFlightId || 'SG-1280';
-    const forecast = riskForecasts[flightId] || [60, 65, 75, 85];
-    
-    const bars = [
-        { id: 'bar-now', value: forecast[0], label: 'risk-now-label' },
-        { id: 'bar-10', value: forecast[1], label: 'risk-10-label' },
-        { id: 'bar-30', value: forecast[2], label: 'risk-30-label' },
-        { id: 'bar-60', value: forecast[3], label: 'risk-60-label' }
-    ];
-    
-    bars.forEach(bar => {
-        const element = document.getElementById(bar.id);
-        const labelElement = document.getElementById(bar.label);
-        
-        if (element) {
-            const height = Math.max(bar.value, 10);
-            element.style.height = height + '%';
-            
-            if (bar.value > 70) {
-                element.className = 'w-full bg-red-600 rounded-t-lg transition-all duration-500';
-            } else if (bar.value > 40) {
-                element.className = 'w-full bg-orange-500 rounded-t-lg transition-all duration-500';
-            } else {
-                element.className = 'w-full bg-green-500 rounded-t-lg transition-all duration-500';
-            }
-        }
-        
-        if (labelElement) {
-            labelElement.textContent = bar.value + '%';
-        }
-    });
+    } catch (error) { console.error('Error loading data:', error); }
 }
 
 function renderHotspots(flights) {
@@ -226,24 +171,16 @@ function renderHotspots(flights) {
     if (!container) return;
     container.innerHTML = '';
 
-    // Flight hotspots
     flights.forEach(flight => {
         if (!hotspotPositions[flight.id]) return;
-
         const pos = hotspotPositions[flight.id];
-        let riskClass = 'low-risk';
-        if (flight.risk > 70) riskClass = 'high-risk';
-        else if (flight.risk > 40) riskClass = 'medium-risk';
+        let riskClass = getRiskClass(flight.risk);
 
         const hotspot = document.createElement('div');
         hotspot.className = 'hotspot ' + riskClass;
         hotspot.style.left = pos.x + '%';
         hotspot.style.top = pos.y + '%';
         
-        if (currentTimeStep === 30 && flight.id === 'EK-9988') {
-            hotspot.style.animation = 'pulse-red 1s infinite';
-        }
-
         const marker = document.createElement('div');
         marker.className = 'hotspot-marker';
         hotspot.appendChild(marker);
@@ -252,16 +189,10 @@ function renderHotspots(flights) {
         label.className = 'hotspot-label';
         label.innerHTML = `<span class="flight-id">${flight.id}</span><span class="risk-text">${flight.risk}% Risk</span>`;
         hotspot.appendChild(label);
-
-        hotspot.onclick = (e) => {
-            e.stopPropagation();
-            selectFlight(flight);
-        };
+        hotspot.onclick = (e) => { e.stopPropagation(); selectFlight(flight); };
         container.appendChild(hotspot);
     });
 
-
-    // Parking congestion zone - BIGGER like prototype
     const parkingPos = hotspotPositions['PARKING'];
     if (parkingPos) {
         const zone = document.createElement('div');
@@ -269,19 +200,16 @@ function renderHotspots(flights) {
         zone.className = 'parking-zone';
         zone.style.left = parkingPos.x + '%';
         zone.style.top = parkingPos.y + '%';
-        zone.style.width = '250px';   // Bigger width
-        zone.style.height = '180px';  // Bigger height
+        zone.style.width = '250px';
+        zone.style.height = '180px';
         
-        // Label with car icon like prototype
+        const parkingRisk = currentParkingData ? Math.round(currentParkingData.congestion_score) : 60;
         const label = document.createElement('div');
         label.className = 'parking-label';
-        label.innerHTML = '🚗 PARKING CONGESTION RISK<br><span style="font-size: 10px; font-weight: normal;">Passenger Parking Traffic</span>';
+        label.id = 'parking-zone-label';
+        label.innerHTML = parkingRisk >= 80 ? ' PARKING CONGESTION RISK' : (parkingRisk >= 50 ? '⚠️ PARKING WARNING' : '✅ PARKING - NORMAL');
         zone.appendChild(label);
-        
-        zone.onclick = (e) => {
-            e.stopPropagation();
-            showParkingDetails();
-        };
+        zone.onclick = (e) => { e.stopPropagation(); showParkingDetails(); };
         container.appendChild(zone);
     }
 }
@@ -290,397 +218,352 @@ function renderFlightRiskTable(flights) {
     const tbody = document.getElementById('flight-risk-table');
     if (!tbody) return;
     tbody.innerHTML = '';
-
+    
+    // Sort: CRITICAL first, then HIGH, then NORMAL
     const sortedFlights = [...flights].sort((a, b) => b.risk - a.risk);
 
     sortedFlights.forEach((flight) => {
-        let riskColor = flight.risk > 70 ? 'text-red-500' : (flight.risk > 40 ? 'text-orange-500' : 'text-green-500');
-        let riskBg = flight.risk > 70 ? 'bg-red-500' : (flight.risk > 40 ? 'bg-orange-500' : 'bg-green-500');
+        let riskColor = getRiskColor(flight.risk);
+        let riskBg = getRiskBg(flight.risk);
         let delay = flight.delay_minutes || Math.floor(flight.risk * 0.5);
-        
-        let priority = flight.risk > 70 ? 'CRITICAL' : (flight.risk > 40 ? 'HIGH' : 'NORMAL');
-        let priorityClass = flight.risk > 70 ? 'bg-red-500/20 text-red-400 border-red-500/30' : (flight.risk > 40 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-green-500/20 text-green-400 border-green-500/30');
+        let priority = getPriorityLabel(flight.risk);
+        let priorityClass = getPriorityClass(flight.risk);
 
         const row = document.createElement('tr');
         row.className = 'flight-row border-b border-slate-800 hover:bg-slate-800/50 transition cursor-pointer';
         if (selectedFlightId === flight.id) row.classList.add('bg-slate-800/70');
         
         row.innerHTML = `
-            <td class="py-3">
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-bold px-2 py-1 rounded border ${priorityClass}">${priority}</span>
-                    <span class="font-bold text-white">${flight.id}</span>
-                </div>
-            </td>
+            <td class="py-3"><div class="flex items-center gap-2"><span class="text-xs font-bold px-2 py-1 rounded border ${priorityClass}">${priority}</span><span class="font-bold text-white">${flight.id}</span></div></td>
             <td class="py-3 text-slate-400">${flight.origin} → ${flight.destination}</td>
             <td class="py-3 text-right ${riskColor} font-medium">${delay}m</td>
-            <td class="py-3 text-right">
-                <div class="flex items-center justify-end gap-2">
-                    <div class="w-16 h-2 bg-slate-700 rounded-full overflow-hidden">
-                        <div class="h-full ${riskBg} rounded-full" style="width: ${flight.risk}%"></div>
-                    </div>
-                    <span class="font-bold ${riskColor} w-10 text-right">${flight.risk}%</span>
-                </div>
-            </td>
+            <td class="py-3 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-2 bg-slate-700 rounded-full overflow-hidden"><div class="h-full ${riskBg} rounded-full" style="width: ${flight.risk}%"></div></div><span class="font-bold ${riskColor} w-10 text-right">${flight.risk}%</span></div></td>
         `;
         row.onclick = () => selectFlight(flight);
         tbody.appendChild(row);
     });
 }
 
+function getRiskClass(risk) { if (risk >= 80) return 'high-risk'; if (risk >= 50) return 'medium-risk'; return 'low-risk'; }
+function getRiskColor(risk) { if (risk >= 80) return 'text-red-500'; if (risk >= 50) return 'text-orange-500'; return 'text-green-500'; }
+function getRiskBg(risk) { if (risk >= 80) return 'bg-red-500'; if (risk >= 50) return 'bg-orange-500'; return 'bg-green-500'; }
+function getPriorityLabel(risk) { if (risk >= 80) return 'CRITICAL'; if (risk >= 50) return 'HIGH'; return 'NORMAL'; }
+function getPriorityClass(risk) { if (risk >= 80) return 'bg-red-500/20 text-red-400 border-red-500/30'; if (risk >= 50) return 'bg-orange-500/20 text-orange-400 border-orange-500/30'; return 'bg-green-500/20 text-green-400 border-green-500/30'; }
+function getBadgeClass(risk) { if (risk >= 80) return 'bg-red-600'; if (risk >= 50) return 'bg-orange-600'; return 'bg-green-600'; }
+
 async function selectFlight(flight) {
+    currentContext = 'flight';
+    currentEventIndex = null;
     selectedFlightId = flight.id;
     selectedRecommendations.clear();
+    appliedRecommendations.clear();
+    currentRiskValue = flight.risk;
     
-    const defaultState = document.getElementById('default-state');
-    const selectedCard = document.getElementById('selected-flight-card');
+    document.getElementById('default-state').classList.add('hidden');
+    document.getElementById('selected-flight-card').classList.remove('hidden');
     
-    if (defaultState) defaultState.classList.add('hidden');
-    if (selectedCard) {
-        selectedCard.classList.remove('hidden');
-    }
+    document.getElementById('selected-flight-id').textContent = flight.id;
+    document.getElementById('selected-flight-route').textContent = `${flight.origin} → ${flight.destination}`;
     
-    const idEl = document.getElementById('selected-flight-id');
-    const routeEl = document.getElementById('selected-flight-route');
-    if (idEl) idEl.textContent = flight.id;
-    if (routeEl) routeEl.textContent = `${flight.origin} → ${flight.destination}`;
-    
-    let riskColor = flight.risk > 70 ? 'text-red-500' : (flight.risk > 40 ? 'text-orange-500' : 'text-green-500');
-    let badgeClass = flight.risk > 70 ? 'bg-red-600' : (flight.risk > 40 ? 'bg-orange-600' : 'bg-green-600');
-    let riskText = flight.risk > 70 ? 'HIGH RISK' : (flight.risk > 40 ? 'MEDIUM RISK' : 'LOW RISK');
-    
-    const badge = document.getElementById('risk-badge');
-    if (badge) {
-        badge.textContent = riskText;
-        badge.className = `px-3 py-1 ${badgeClass} text-white text-xs font-bold rounded uppercase`;
-    }
-    
-    const scoreEl = document.getElementById('risk-score-value');
-    if (scoreEl) {
-        scoreEl.textContent = flight.risk;
-        scoreEl.className = `text-3xl font-bold ${riskColor}`;
-    }
-    
-    const delayEl = document.getElementById('predicted-delay');
-    if (delayEl) delayEl.textContent = (flight.delay_minutes || Math.floor(flight.risk * 0.5)) + 'm';
-    
-    const confEl = document.getElementById('confidence');
-    if (confEl) confEl.textContent = Math.floor(80 + Math.random() * 15) + '%';
-    
-    let causeText = "Aircraft maintenance delay and high predicted passenger arrival time due to landside traffic.";
-    if (currentTimeStep === 30 && flight.id === 'EK-9988') {
-        causeText = "New arrival overlapping with Maintenance Crew Shift Change. No ground crew available for immediate turnaround.";
-    } else if (flight.risk > 70 && currentTimeStep === 60) {
-        causeText = "Severe weather delay at origin compounded by current ground congestion.";
-    }
-    const causeEl = document.getElementById('risk-cause');
-    if (causeEl) causeEl.textContent = causeText;
-
+    updateAIPanelUI(flight.risk, flight.delay_minutes || Math.floor(flight.risk * 0.5));
+    document.getElementById('risk-cause').textContent = "Aircraft maintenance delay and high predicted passenger arrival time due to landside traffic.";
     renderRecommendationCards(flight);
     updateExpectedImpact();
-    updateRiskForecast();
     updateApplyButton();
-
-    await loadAndRenderData(); 
 }
 
-function renderRecommendationCards(flight) {
+function updateAIPanelUI(risk, delay) {
+    const riskColor = getRiskColor(risk);
+    const badgeClass = getBadgeClass(risk);
+    const riskText = getPriorityLabel(risk);
+    
+    const badge = document.getElementById('risk-badge');
+    if (badge) { badge.textContent = riskText; badge.className = `px-2 py-1 ${badgeClass} text-white text-xs font-bold rounded uppercase`; }
+    
+    const scoreEl = document.getElementById('risk-score-value');
+    if (scoreEl) { scoreEl.textContent = risk; scoreEl.className = `text-2xl font-bold ${riskColor}`; }
+    
+    const riskCircle = document.getElementById('risk-circle');
+    if (riskCircle) {
+        riskCircle.setAttribute('stroke', risk >= 80 ? '#ef4444' : (risk >= 50 ? '#f97316' : '#22c55e'));
+    }
+    
+    document.getElementById('predicted-delay').textContent = delay + 'm';
+    document.getElementById('confidence').textContent = Math.floor(80 + Math.random() * 15) + '%';
+}
+
+function renderRecommendationCards(item) {
     const container = document.getElementById('ai-recommendations');
     if (!container) return;
     container.innerHTML = '';
     
-    const recs = recommendationsDB[flight.id] || recommendationsDB['default'];
+    let recs;
+    if (currentContext === 'event' && currentEventIndex !== null) {
+        recs = futureScenarios[currentTimeStep].events[currentEventIndex].recommendations || [];
+    } else {
+        recs = recommendationsDB[item.id] || recommendationsDB['default'];
+    }
     
     recs.forEach(rec => {
+        if (appliedRecommendations.has(rec.id)) return;
         const card = document.createElement('div');
         card.className = 'rec-card';
         card.dataset.recId = rec.id;
         card.onclick = () => toggleRecommendation(rec.id, card);
-        
-        card.innerHTML = `
-            <div class="rec-checkbox">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-            </div>
-            <div class="rec-content">
-                <div class="rec-text">${rec.text}</div>
-                <div class="rec-impact">${rec.impact}</div>
-            </div>
-        `;
-        
+        card.innerHTML = `<div class="rec-checkbox"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg></div><div class="rec-content"><div class="rec-text">${rec.text}</div><div class="rec-impact">${rec.impact}</div></div>`;
         container.appendChild(card);
     });
 }
 
-
-// Toggle Risk Forecast visibility (FLOATING container above panel)
-function toggleRiskForecast() {
-    const forecast = document.getElementById('risk-forecast-floating');
-    const btn = event.target;
+function showParkingDetails() {
+    currentContext = 'parking';
+    currentEventIndex = null;
+    selectedFlightId = 'PARKING';
+    selectedRecommendations.clear();
+    appliedRecommendations.clear();
     
-    if (forecast.classList.contains('hidden')) {
-        forecast.classList.remove('hidden');
-        btn.textContent = 'Hide Forecast';
-    } else {
-        forecast.classList.add('hidden');
-        btn.textContent = 'Show Forecast';
-    }
+    document.getElementById('default-state').classList.add('hidden');
+    document.getElementById('selected-flight-card').classList.remove('hidden');
+    document.getElementById('selected-flight-id').textContent = 'PARKING';
+    document.getElementById('selected-flight-route').textContent = 'Landside → Terminal';
+    
+    const risk = currentParkingData ? Math.round(currentParkingData.congestion_score) : 60;
+    currentRiskValue = risk;
+    updateAIPanelUI(risk, Math.round(risk * 0.25));
+    document.getElementById('risk-cause').textContent = `Passenger parking congestion at ${risk}%.`;
+    renderRecommendationCards({ id: 'PARKING' });
+    updateExpectedImpact();
+    updateApplyButton();
+}
+
+async function updateParkingStatus() {
+    try {
+        const response = await fetch('/api/parking_status');
+        currentParkingData = await response.json();
+        updateParkingZoneOnMap(currentParkingData);
+    } catch (error) { console.error('Error fetching parking status:', error); }
+}
+
+function updateParkingZoneOnMap(parkingData) {
+    let zone = document.getElementById('parking-zone');
+    if (!zone) return;
+    const score = parkingData.congestion_score;
+    let borderColor = score >= 80 ? '#ef4444' : (score >= 50 ? '#f97316' : '#22c55e');
+    zone.style.borderColor = borderColor;
+    zone.style.background = `radial-gradient(circle, ${borderColor}30 0%, transparent 70%)`;
+    zone.style.boxShadow = `0 0 50px ${borderColor}80`;
+    
+    const label = document.getElementById('parking-zone-label');
+    if (label) label.innerHTML = score >= 80 ? '🚨 PARKING CONGESTION RISK' : (score >= 50 ? '⚠️ PARKING WARNING' : '✅ PARKING - NORMAL');
+}
+
+function showEventDetails(eventIndex) {
+    currentContext = 'event';
+    currentEventIndex = eventIndex;
+    selectedRecommendations.clear();
+    appliedRecommendations.clear();
+    
+    const scenario = futureScenarios[currentTimeStep];
+    const event = scenario.events[eventIndex];
+    
+    document.getElementById('default-state').classList.add('hidden');
+    document.getElementById('selected-flight-card').classList.remove('hidden');
+    
+    document.getElementById('selected-flight-id').innerHTML = `<div class="event-header-title">${event.text}</div>`;
+    document.getElementById('selected-flight-route').innerHTML = `<span class="event-header-time">${event.time} • ${event.type.toUpperCase()}</span>`;
+    
+    currentRiskValue = event.risk;
+    updateAIPanelUI(event.risk, Math.floor(event.risk * 0.5));
+    document.getElementById('risk-cause').innerHTML = `<div class="event-impact-box"><div class="event-impact-label">Impact Assessment</div><div class="event-impact-text">${event.impact}</div></div>`;
+    
+    renderRecommendationCards({ id: 'event' });
+    updateExpectedImpact();
+    updateApplyButton();
 }
 
 function toggleRecommendation(recId, cardElement) {
-    if (selectedRecommendations.has(recId)) {
-        selectedRecommendations.delete(recId);
-        cardElement.classList.remove('selected');
-    } else {
-        selectedRecommendations.add(recId);
-        cardElement.classList.add('selected');
-    }
+    if (selectedRecommendations.has(recId)) { selectedRecommendations.delete(recId); cardElement.classList.remove('selected'); }
+    else { selectedRecommendations.add(recId); cardElement.classList.add('selected'); }
     updateExpectedImpact();
     updateApplyButton();
 }
 
 function selectAllRecommendations() {
-    const cards = document.querySelectorAll('.rec-card');
-    cards.forEach(card => {
-        const recId = card.dataset.recId;
-        selectedRecommendations.add(recId);
-        card.classList.add('selected');
-    });
+    document.querySelectorAll('.rec-card').forEach(card => { selectedRecommendations.add(card.dataset.recId); card.classList.add('selected'); });
     updateExpectedImpact();
     updateApplyButton();
 }
 
 function updateExpectedImpact() {
-    const flightId = selectedFlightId;
-    const recs = recommendationsDB[flightId] || recommendationsDB['default'];
+    let recs = (currentContext === 'event' && currentEventIndex !== null) ? futureScenarios[currentTimeStep].events[currentEventIndex].recommendations : (recommendationsDB[selectedFlightId] || recommendationsDB['default']);
+    let totalRiskReduction = 0, totalDelayReduction = 0;
+    selectedRecommendations.forEach(recId => { const rec = recs.find(r => r.id === recId); if (rec) { totalRiskReduction += rec.riskReduction; totalDelayReduction += rec.delayReduction; } });
     
-    let totalRiskReduction = 0;
-    let totalDelayReduction = 0;
-    
-    selectedRecommendations.forEach(recId => {
-        const rec = recs.find(r => r.id === recId);
-        if (rec) {
-            totalRiskReduction += rec.riskReduction;
-            totalDelayReduction += rec.delayReduction;
-        }
-    });
-    
-    const currentRisk = parseInt(document.getElementById('risk-score-value').textContent) || 80;
+    const currentRisk = currentRiskValue || 80;
     const currentDelay = parseInt(document.getElementById('predicted-delay').textContent) || 40;
     
-    const newRisk = Math.max(10, currentRisk - totalRiskReduction);
-    const newDelay = Math.max(0, currentDelay - totalDelayReduction);
-    
-    document.getElementById('expected-risk-after').textContent = newRisk + '%';
+    document.getElementById('expected-risk-after').textContent = Math.max(0, currentRisk - totalRiskReduction) + '%';
     document.getElementById('expected-delay-reduction').textContent = totalDelayReduction + 'm';
 }
 
 function updateApplyButton() {
     const btn = document.getElementById('apply-btn');
     if (!btn) return;
-    
-    if (selectedRecommendations.size === 0) {
-        btn.disabled = true;
-        btn.textContent = 'Select at least one recommendation';
-    } else {
-        btn.disabled = false;
-        btn.textContent = `Apply ${selectedRecommendations.size} Recommendation${selectedRecommendations.size > 1 ? 's' : ''}`;
-    }
+    btn.disabled = selectedRecommendations.size === 0;
+    btn.textContent = selectedRecommendations.size === 0 ? 'Select at least one recommendation' : `Apply ${selectedRecommendations.size} Recommendation${selectedRecommendations.size > 1 ? 's' : ''}`;
 }
 
 async function applySelectedRecommendations() {
     const btn = document.getElementById('apply-btn');
     if (!btn) return;
-    
     btn.textContent = 'Applying...';
     btn.disabled = true;
-    
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    const flightId = selectedFlightId;
-    const recs = recommendationsDB[flightId] || recommendationsDB['default'];
+    let recs = (currentContext === 'event' && currentEventIndex !== null) ? futureScenarios[currentTimeStep].events[currentEventIndex].recommendations : (recommendationsDB[selectedFlightId] || recommendationsDB['default']);
+    let totalRiskReduction = 0, totalDelayReduction = 0;
     
-    let totalRiskReduction = 0;
-    let totalDelayReduction = 0;
+    selectedRecommendations.forEach(recId => { const rec = recs.find(r => r.id === recId); if (rec) { totalRiskReduction += rec.riskReduction; totalDelayReduction += rec.delayReduction; appliedRecommendations.add(recId); } });
     
-    selectedRecommendations.forEach(recId => {
-        const rec = recs.find(r => r.id === recId);
-        if (rec) {
-            totalRiskReduction += rec.riskReduction;
-            totalDelayReduction += rec.delayReduction;
+    const newRisk = Math.max(0, currentRiskValue - totalRiskReduction);
+    const newDelay = Math.max(0, parseInt(document.getElementById('predicted-delay').textContent) - totalDelayReduction);
+    currentRiskValue = newRisk;
+    
+    // 1. UPDATE EVENT RISK (For Prediction Horizon filtering)
+    if (currentContext === 'event' && currentEventIndex !== null) {
+        futureScenarios[currentTimeStep].events[currentEventIndex].risk = newRisk;
+        
+        // 2. UPDATE RELATED FLIGHT RISK (For Flight Risk List downgrading)
+        const eventId = futureScenarios[currentTimeStep].events[currentEventIndex].relatedFlightId;
+        if (eventId) {
+            const flightIndex = currentFlights.findIndex(f => f.id === eventId);
+            if (flightIndex !== -1) {
+                currentFlights[flightIndex].risk = newRisk;
+                currentFlights[flightIndex].delay_minutes = newDelay;
+            }
         }
-    });
+    }
     
-    const currentRisk = parseInt(document.getElementById('risk-score-value').textContent) || 80;
-    const newRisk = Math.max(10, currentRisk - totalRiskReduction);
+    updateAIPanelUI(newRisk, newDelay);
     
-    document.getElementById('risk-score-value').textContent = newRisk;
-    document.getElementById('risk-score-value').className = `text-3xl font-bold ${newRisk > 70 ? 'text-red-500' : (newRisk > 40 ? 'text-orange-500' : 'text-green-500')}`;
+    const causeEl = document.getElementById('risk-cause');
+    if (causeEl) {
+        if (currentContext === 'event') {
+            causeEl.textContent = `Event mitigated. Risk reduced to ${newRisk}%. ${newRisk < 50 ? 'Status: NORMAL/UPCOMING.' : 'Status: HIGH.'}`;
+        } else if (selectedFlightId === 'PARKING') {
+            causeEl.textContent = `Parking congestion reduced to ${newRisk}%.`;
+        } else {
+            causeEl.textContent = `Flight risk reduced to ${newRisk}%.`;
+        }
+    }
     
-    const currentDelay = parseInt(document.getElementById('predicted-delay').textContent) || 40;
-    const newDelay = Math.max(0, currentDelay - totalDelayReduction);
-    document.getElementById('predicted-delay').textContent = newDelay + 'm';
-    
-    renderHotspots(currentFlights);
-    
-    await loadAndRenderData();
+    // Refresh UI
+    if (currentContext === 'flight') {
+        renderHotspots(currentFlights);
+        renderFlightRiskTable(currentFlights);
+        updateHighRiskCount(currentFlights);
+    } else if (currentContext === 'event') {
+        // Update event timeline (will filter out if risk < 50)
+        updateEventTimeline(futureScenarios[currentTimeStep]);
+        // Update flight table (will show downgraded status)
+        renderFlightRiskTable(currentFlights);
+        updateHighRiskCount(currentFlights);
+        renderHotspots(currentFlights);
+    } else if (currentContext === 'parking' && currentParkingData) {
+        currentParkingData.congestion_score = newRisk;
+        updateParkingZoneOnMap(currentParkingData);
+    }
     
     btn.textContent = '✓ Applied Successfully!';
     btn.classList.add('success');
+    selectedRecommendations.clear();
+    
+    setTimeout(() => {
+        renderRecommendationCards({ id: currentContext === 'event' ? 'event' : selectedFlightId });
+        updateApplyButton();
+    }, 100);
     
     setTimeout(() => {
         btn.textContent = 'Select at least one recommendation';
         btn.classList.remove('success');
         btn.disabled = false;
-        selectedRecommendations.clear();
-        document.querySelectorAll('.rec-card').forEach(card => card.classList.remove('selected'));
-        updateApplyButton();
     }, 2000);
 }
 
 function setupTimeControls() {
-    const buttons = document.querySelectorAll('.time-btn');
-    const slider = document.querySelector('.slider');
-    
-    buttons.forEach(btn => {
+    document.querySelectorAll('.time-btn').forEach(btn => {
         btn.onclick = function() {
-            buttons.forEach(b => {
-                b.classList.remove('bg-blue-600', 'text-white');
-                b.classList.add('bg-slate-800', 'text-slate-400');
-            });
+            document.querySelectorAll('.time-btn').forEach(b => { b.classList.remove('bg-blue-600', 'text-white'); b.classList.add('bg-slate-800', 'text-slate-400'); });
             this.classList.remove('bg-slate-800', 'text-slate-400');
             this.classList.add('bg-blue-600', 'text-white');
-            
             currentTimeStep = parseInt(this.dataset.time);
-            slider.value = currentTimeStep;
-            
             loadAndRenderData();
         };
     });
-
-    slider.oninput = function() {
-        const val = parseInt(this.value);
-        const snapped = Math.round(val / 10) * 10;
-        this.value = snapped;
-        
-        const targetBtn = document.querySelector(`.time-btn[data-time="${snapped}"]`);
-        if (targetBtn) targetBtn.click();
-    };
 }
 
-function setupMapScroll() {
-    const scrollContainer = document.getElementById('map-scroll-container');
+function toggleRiskForecast() {
+    const forecast = document.getElementById('risk-forecast-floating');
+    const btn = event.target;
+    if (forecast.classList.contains('hidden')) { forecast.classList.remove('hidden'); btn.textContent = 'Hide Forecast'; }
+    else { forecast.classList.add('hidden'); btn.textContent = 'Show Forecast'; }
 }
 
-function updateCurrentTime() {
-    document.getElementById('current-time').textContent = new Date().toTimeString().split(' ')[0];
-}
-
-function updateHighRiskCount(flights) {
-    document.getElementById('high-risk-count').textContent = flights.filter(f => f.risk > 70).length;
-}
-
-// PARKING FUNCTIONS
-async function updateParkingStatus() {
-    try {
-        const response = await fetch('/api/parking_status');
-        currentParkingData = await response.json();
-        
-        updateParkingZoneOnMap(currentParkingData);
-        
-    } catch (error) {
-        console.error('Error fetching parking status:', error);
-    }
-}
-
-function showParkingDetails() {
-    if (!currentParkingData) {
-        updateParkingStatus();
-        return;
-    }
+function updateEventTimeline(scenario) {
+    const timeline = document.getElementById('event-timeline');
+    if (!timeline) return;
+    timeline.innerHTML = '';
     
-    selectedFlightId = 'PARKING';
-    selectedRecommendations.clear();
+    // FILTER: Only show events with risk >= 50 (CRITICAL or HIGH)
+    // Events with risk < 50 (NORMAL) will DISAPPEAR from this list
+    const eventsToShow = scenario.events.filter(evt => evt.risk >= 50);
     
-    document.getElementById('default-state').classList.add('hidden');
-    const selectedCard = document.getElementById('selected-flight-card');
-    selectedCard.classList.remove('hidden');
-    
-    document.getElementById('selected-flight-id').textContent = 'PARKING';
-    document.getElementById('selected-flight-route').textContent = 'Landside → Terminal';
-    
-    const badge = document.getElementById('risk-badge');
-    const scoreEl = document.getElementById('risk-score-value');
-    const delayEl = document.getElementById('predicted-delay');
-    const confEl = document.getElementById('confidence');
-    const causeEl = document.getElementById('risk-cause');
-    
-    const score = Math.round(currentParkingData.congestion_score);
-    scoreEl.textContent = score;
-    
-    let badgeClass, riskText, colorClass;
-    if (score > 85) {
-        badgeClass = 'bg-red-600';
-        riskText = 'CRITICAL';
-        colorClass = 'text-red-500';
-    } else if (score > 60) {
-        badgeClass = 'bg-orange-600';
-        riskText = 'HIGH RISK';
-        colorClass = 'text-orange-500';
-    } else if (score > 30) {
-        badgeClass = 'bg-yellow-600';
-        riskText = 'MEDIUM RISK';
-        colorClass = 'text-yellow-500';
+    if (eventsToShow.length === 0) {
+        timeline.innerHTML = `<div class="event-item info"><span class="event-time">--</span><span class="event-text">No upcoming critical events.</span></div>`;
     } else {
-        badgeClass = 'bg-green-600';
-        riskText = 'LOW RISK';
-        colorClass = 'text-green-500';
+        eventsToShow.forEach((evt, index) => {
+            // Find original index for onclick
+            const originalIndex = scenario.events.indexOf(evt);
+            
+            const div = document.createElement('div');
+            let itemClass = evt.risk >= 80 ? 'critical' : 'warning';
+            
+            div.className = `event-item ${itemClass}`;
+            div.innerHTML = `
+                <span class="event-time">${evt.time}</span>
+                <div class="flex flex-col flex-1">
+                    <span class="event-text font-bold">${evt.text}</span>
+                    <span class="text-[9px] ${getRiskColor(evt.risk)} font-bold mt-0.5">${evt.risk >= 80 ? 'CRITICAL' : 'HIGH'} • ${evt.risk}% Risk</span>
+                </div>
+                <button class="event-action-btn" onclick="showEventDetails(${originalIndex})">View AI Analysis</button>
+            `;
+            timeline.appendChild(div);
+        });
     }
     
-    badge.textContent = riskText;
-    badge.className = `px-3 py-1 ${badgeClass} text-white text-xs font-bold rounded uppercase`;
-    scoreEl.className = `text-3xl font-bold ${colorClass}`;
-    
-    const delay = Math.round(score * 0.5);
-    delayEl.textContent = delay + 'm';
-    confEl.textContent = Math.floor(85 + Math.random() * 10) + '%';
-    
-    causeEl.textContent = `Passenger parking congestion at ${currentParkingData.occupancy_rate}%. ${currentParkingData.is_peak_hour ? 'Peak hour traffic compounding the issue. ' : ''}Heavy vehicle traffic causing bottlenecks at terminal access points.`;
-    
-    renderRecommendationCards({ id: 'PARKING' });
-    updateExpectedImpact();
-    updateApplyButton();
-    updateRiskForecast();
+    const msgDiv = document.getElementById('prediction-message');
+    if (msgDiv) msgDiv.textContent = scenario.message || 'Viewing current state.';
 }
 
-function updateParkingZoneOnMap(parkingData) {
-    let zone = document.getElementById('parking-zone');
+function updateRiskForecast() {
+    const flightId = selectedFlightId || 'SG-1280';
+    const forecast = riskForecasts[flightId] || [60, 65, 75, 85];
+    const bars = [{ id: 'bar-now', value: forecast[0], label: 'risk-now-label' }, { id: 'bar-10', value: forecast[1], label: 'risk-10-label' }, { id: 'bar-30', value: forecast[2], label: 'risk-30-label' }, { id: 'bar-60', value: forecast[3], label: 'risk-60-label' }];
     
-    if (!zone) return;
-    
-    const score = parkingData.congestion_score;
-    let borderColor, glowColor;
-    
-    if (score > 85) {
-        borderColor = '#ef4444';
-        glowColor = 'rgba(239, 68, 68, 0.6)';
-    } else if (score > 60) {
-        borderColor = '#f97316';
-        glowColor = 'rgba(249, 115, 22, 0.5)';
-    } else {
-        borderColor = '#22c55e';
-        glowColor = 'rgba(34, 197, 94, 0.4)';
-    }
-    
-    zone.style.borderColor = borderColor;
-    zone.style.background = `radial-gradient(circle, ${borderColor}30 0%, transparent 70%)`;
-    zone.style.boxShadow = `0 0 50px ${glowColor}`;
-    zone.style.animation = score > 60 ? 'pulse-parking 2s infinite' : 'none';
+    bars.forEach(bar => {
+        const element = document.getElementById(bar.id);
+        const labelElement = document.getElementById(bar.label);
+        if (element) {
+            element.style.height = Math.max(bar.value, 10) + '%';
+            element.className = `w-full rounded-t-lg transition-all duration-500 ${bar.value >= 80 ? 'bg-red-600' : (bar.value >= 50 ? 'bg-orange-500' : 'bg-green-500')}`;
+        }
+        if (labelElement) labelElement.textContent = bar.value + '%';
+    });
 }
 
-window.addEventListener('beforeunload', () => {
-    if (parkingUpdateInterval) {
-        clearInterval(parkingUpdateInterval);
-    }
-});
+function updateCurrentTime() { document.getElementById('current-time').textContent = new Date().toTimeString().split(' ')[0]; }
+function updateHighRiskCount(flights) { document.getElementById('high-risk-count').textContent = flights.filter(f => f.risk >= 80).length; }
+function toggleAIImpact() { const modal = document.getElementById('ai-impact-modal'); const backdrop = document.getElementById('modal-backdrop'); if (modal.classList.contains('active')) { modal.classList.remove('active'); backdrop.classList.remove('active'); } else { modal.classList.add('active'); backdrop.classList.add('active'); } }
 
+window.addEventListener('beforeunload', () => { if (parkingUpdateInterval) clearInterval(parkingUpdateInterval); });
 document.addEventListener('DOMContentLoaded', initDashboard);
