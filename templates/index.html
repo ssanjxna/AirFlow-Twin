@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block title %}AirFlow Twin - Live Simulator{% endblock %}
+
+{% block content %}
+<!-- SIDE-BY-SIDE LAYOUT: Map (Left) + Prediction Horizon (Right) -->
+<div class="grid grid-cols-12 gap-3 flex-1">
+    
+    <!-- LEFT: Live Simulator Map (8 cols - ~67% width) -->
+    <div class="col-span-8 relative bg-slate-900 rounded-lg border border-slate-800 overflow-hidden" style="max-height: 85vh;">
+        
+        <!-- Map Image (Full View with object-fit) -->
+        <img src="{{ url_for('static', filename='img/airport_bg.png') }}" 
+             class="w-full h-full object-contain block pointer-events-none" 
+             style="min-height: 100%;"
+             alt="Airport">
+        
+        <!-- Hotspots Container (Covers the whole image) -->
+        <div id="hotspots-container" class="absolute inset-0 z-20"></div>
+        
+        <!-- Live Simulation Badge -->
+        <div class="absolute bottom-4 right-4 flex items-center gap-2 bg-black/70 px-4 py-2 rounded-full border border-green-700/50 z-30 backdrop-blur-sm">
+            <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span class="text-sm text-green-400 font-medium">Live Simulation</span>
+            <span class="text-sm text-slate-400 mx-2">|</span>
+            <span class="text-sm text-slate-400" id="current-time">09:28:14</span>
+            <span class="text-sm text-slate-400 mx-2">|</span>
+            <span class="text-sm text-slate-400">24°C</span>
+        </div>
+    </div>
+
+    <!-- RIGHT: Prediction Horizon (4 cols - ~33% width) -->
+    <div class="col-span-4 bg-slate-900 rounded-lg border border-slate-800 p-3 flex flex-col" style="max-height: 85vh;">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-sm font-bold text-slate-300 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                PREDICTION HORIZON
+            </h3>
+            <a href="/horizon" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded transition">
+                View Full →
+            </a>
+        </div>
+        
+        <!-- Time Buttons -->
+        <div class="flex gap-2 mb-3">
+            <button class="time-btn flex-1 py-1.5 rounded bg-blue-600 text-white text-xs font-semibold transition" data-time="0">Now</button>
+            <button class="time-btn flex-1 py-1.5 rounded bg-slate-800 text-slate-400 text-xs font-semibold hover:bg-slate-700 transition" data-time="15">+15m</button>
+            <button class="time-btn flex-1 py-1.5 rounded bg-slate-800 text-slate-400 text-xs font-semibold hover:bg-slate-700 transition" data-time="30">+30m</button>
+            <button class="time-btn flex-1 py-1.5 rounded bg-slate-800 text-slate-400 text-xs font-semibold hover:bg-slate-700 transition" data-time="60">+1h</button>
+        </div>
+
+        <!-- Upcoming Events -->
+        <div class="flex-1 overflow-y-auto custom-scrollbar">
+            <p class="text-xs text-slate-400 mb-2 uppercase font-bold">Upcoming Events</p>
+            <div id="event-timeline-summary" class="space-y-2">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <p id="prediction-message" class="text-xs text-slate-500 text-center mt-2 pt-2 border-t border-slate-800">Current state: Normal operations.</p>
+    </div>
+</div>
+{% endblock %}

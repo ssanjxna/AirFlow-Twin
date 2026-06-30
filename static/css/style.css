@@ -1,3 +1,7 @@
+/* ============================================================================
+   COMPACT HEADER STYLES
+   ============================================================================ */
+
 /* Make page scrollable */
 html, body {
     overflow-x: hidden;
@@ -9,6 +13,19 @@ html, body {
 /* Smooth scrolling */
 html {
     scroll-behavior: smooth;
+}
+
+/* Compact header override */
+nav {
+    height: 3.5rem !important;
+}
+
+nav .text-xl {
+    font-size: 1.125rem !important;
+}
+
+nav .text-\[9px\] {
+    font-size: 8px !important;
 }
 
 /* Custom scrollbar for main page */
@@ -29,6 +46,10 @@ body::-webkit-scrollbar-thumb:hover {
     background: #475569;
 }
 
+/* ============================================================================
+   CUSTOM SCROLLBARS
+   ============================================================================ */
+
 /* Custom Scrollbar for internal elements */
 .custom-scrollbar::-webkit-scrollbar { 
     width: 6px; 
@@ -45,24 +66,28 @@ body::-webkit-scrollbar-thumb:hover {
     background: #475569; 
 }
 
-/* Parking Congestion Zone */
+/* ============================================================================
+   PARKING CONGESTION ZONE
+   ============================================================================ */
+
+/* Make parking zone more visible and vibrant */
 .parking-zone {
     position: absolute;
     cursor: pointer;
     transform: translate(-50%, -50%);
     z-index: 25;
     transition: all 0.3s ease;
-    border: 3px solid rgba(239, 68, 68, 0.8);
+    border: 4px solid #ef4444 !important;
     border-radius: 50%;
-    background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.4) 0%, rgba(239, 68, 68, 0.1) 50%, transparent 70%);
-    box-shadow: 0 0 60px rgba(239, 68, 68, 0.6), inset 0 0 30px rgba(239, 68, 68, 0.3);
+    background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.5) 0%, rgba(239, 68, 68, 0.2) 50%, transparent 70%) !important;
+    box-shadow: 0 0 60px rgba(239, 68, 68, 0.8), inset 0 0 30px rgba(239, 68, 68, 0.4) !important;
     animation: pulse-parking 2s infinite;
 }
 
 .parking-zone:hover {
     transform: translate(-50%, -50%) scale(1.05);
     z-index: 35;
-    box-shadow: 0 0 80px rgba(239, 68, 68, 0.8), inset 0 0 40px rgba(239, 68, 68, 0.4);
+    box-shadow: 0 0 80px rgba(239, 68, 68, 1), inset 0 0 40px rgba(239, 68, 68, 0.6) !important;
 }
 
 .parking-label {
@@ -86,16 +111,19 @@ body::-webkit-scrollbar-thumb:hover {
 
 @keyframes pulse-parking {
     0%, 100% { 
-        opacity: 0.5;
-        box-shadow: 0 0 60px rgba(239, 68, 68, 0.6), inset 0 0 30px rgba(239, 68, 68, 0.3);
+        opacity: 0.7;
+        box-shadow: 0 0 60px rgba(239, 68, 68, 0.8), inset 0 0 30px rgba(239, 68, 68, 0.4);
     }
     50% { 
-        opacity: 0.7;
-        box-shadow: 0 0 80px rgba(239, 68, 68, 0.8), inset 0 0 40px rgba(239, 68, 68, 0.4);
+        opacity: 1;
+        box-shadow: 0 0 80px rgba(239, 68, 68, 1), inset 0 0 40px rgba(239, 68, 68, 0.6);
     }
 }
 
-/* Event Action Button */
+/* ============================================================================
+   EVENT ACTION BUTTON
+   ============================================================================ */
+
 .event-action-btn {
     margin-left: auto;
     padding: 6px 12px;
@@ -117,7 +145,10 @@ body::-webkit-scrollbar-thumb:hover {
     transform: scale(1.05);
 }
 
-/* Event Display in AI Panel */
+/* ============================================================================
+   EVENT DISPLAY IN AI PANEL
+   ============================================================================ */
+
 .event-header-title {
     font-size: 1.5rem;
     font-weight: 700;
@@ -156,7 +187,10 @@ body::-webkit-scrollbar-thumb:hover {
     line-height: 1.5;
 }
 
-/* Hotspots */
+/* ============================================================================
+   HOTSPOTS
+   ============================================================================ */
+
 .hotspot {
     position: absolute;
     cursor: pointer;
@@ -219,24 +253,32 @@ body::-webkit-scrollbar-thumb:hover {
     color: #cbd5e1;
 }
 
-/* Animations */
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
+
 @keyframes pulse-red { 
     0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 
     70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); } 
     100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } 
 }
+
 @keyframes pulse-orange { 
     0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7); } 
     70% { box-shadow: 0 0 0 15px rgba(249, 115, 22, 0); } 
     100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); } 
 }
+
 @keyframes pulse-green { 
     0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 
     70% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); } 
     100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } 
 }
 
-/* Table Rows */
+/* ============================================================================
+   TABLE ROWS
+   ============================================================================ */
+
 .flight-row { 
     cursor: pointer; 
     transition: all 0.2s; 
@@ -250,7 +292,10 @@ body::-webkit-scrollbar-thumb:hover {
     border-left: 3px solid #3b82f6;
 }
 
-/* Event Timeline */
+/* ============================================================================
+   EVENT TIMELINE
+   ============================================================================ */
+
 .event-item {
     display: flex;
     align-items: flex-start;
@@ -287,7 +332,10 @@ body::-webkit-scrollbar-thumb:hover {
     flex: 1;
 }
 
-/* Recommendation Cards */
+/* ============================================================================
+   RECOMMENDATION CARDS
+   ============================================================================ */
+
 .rec-card {
     background: rgba(30, 41, 59, 0.6);
     border: 1px solid rgba(51, 65, 85, 0.6);
@@ -357,7 +405,10 @@ body::-webkit-scrollbar-thumb:hover {
     font-size: 12px;
 }
 
-/* Apply Button */
+/* ============================================================================
+   APPLY BUTTON
+   ============================================================================ */
+
 #apply-btn.success {
     background: linear-gradient(to right, #10b981, #059669) !important;
     animation: pulse-success 0.5s ease;
@@ -368,7 +419,10 @@ body::-webkit-scrollbar-thumb:hover {
     100% { transform: scale(1); }
 }
 
-/* Slider */
+/* ============================================================================
+   SLIDER
+   ============================================================================ */
+
 .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
