@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Prediction Horizon - AirFlow Twin{% endblock %}
+
+{% block content %}
+<!-- TOP NAVIGATION -->
+<div class="flex items-center gap-4 mb-4">
+    <a href="/" class="flex items-center gap-2 text-slate-400 hover:text-white transition bg-slate-800 px-3 py-2 rounded-lg border border-slate-700">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        Back to Live Simulator
+    </a>
+    <h2 class="text-xl font-bold text-white">Prediction Horizon - Future State Analysis</h2>
+</div>
+
+<!-- MAIN CONTENT GRID -->
+<div class="grid grid-cols-12 gap-4 flex-1">
+    
+    <!-- LEFT COLUMN: Risk Forecast (4 cols) -->
+    <div class="col-span-4 flex flex-col gap-4">
+        <div class="bg-slate-900 rounded-lg border border-slate-800 p-5">
+            <h3 class="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                RISK FORECAST
+            </h3>
+            
+            <!-- Time Buttons -->
+            <div class="flex gap-2 mb-4">
+                <button class="time-btn flex-1 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold transition" data-time="0">Now</button>
+                <button class="time-btn flex-1 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold hover:bg-slate-700 transition" data-time="10">+10m</button>
+                <button class="time-btn flex-1 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold hover:bg-slate-700 transition" data-time="30">+30m</button>
+                <button class="time-btn flex-1 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold hover:bg-slate-700 transition" data-time="60">+1h</button>
+            </div>
+
+            <!-- Forecast Bars -->
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <div class="flex items-end justify-between gap-3 h-32">
+                    <div class="flex-1 flex flex-col items-center gap-2">
+                        <div class="w-full bg-green-500 rounded-t-lg transition-all duration-500" id="bar-now" style="height: 60%"></div>
+                        <span class="text-xs text-slate-500">Now</span>
+                        <span class="text-sm font-bold text-slate-300" id="risk-now-label">61%</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center gap-2">
+                        <div class="w-full bg-yellow-500 rounded-t-lg transition-all duration-500" id="bar-10" style="height: 65%"></div>
+                        <span class="text-xs text-slate-500">+10m</span>
+                        <span class="text-sm font-bold text-slate-300" id="risk-10-label">65%</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center gap-2">
+                        <div class="w-full bg-orange-500 rounded-t-lg transition-all duration-500" id="bar-30" style="height: 80%"></div>
+                        <span class="text-xs text-slate-500">+30m</span>
+                        <span class="text-sm font-bold text-slate-300" id="risk-30-label">80%</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center gap-2">
+                        <div class="w-full bg-red-600 rounded-t-lg transition-all duration-500" id="bar-60" style="height: 95%"></div>
+                        <span class="text-xs text-slate-500">+1h</span>
+                        <span class="text-sm font-bold text-slate-300" id="risk-60-label">92%</span>
+                    </div>
+                </div>
+            </div>
+
+            <p id="prediction-message" class="text-xs text-slate-500 text-center mt-3">Current state: Normal operations.</p>
+        </div>
+
+        <!-- AI Impact Summary -->
+        <div class="bg-slate-900 rounded-lg border border-slate-800 p-5">
+            <h3 class="text-sm font-bold text-slate-300 mb-3">AI IMPACT SUMMARY</h3>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="bg-red-900/20 rounded p-3 text-center border border-red-900/30">
+                    <p class="text-[9px] text-red-400 mb-1">BEFORE</p>
+                    <p class="text-2xl font-bold text-red-500">5</p>
+                    <p class="text-[9px] text-slate-500">Delayed</p>
+                </div>
+                <div class="bg-green-900/20 rounded p-3 text-center border border-green-900/30">
+                    <p class="text-[9px] text-green-400 mb-1">AFTER</p>
+                    <p class="text-2xl font-bold text-green-500">2</p>
+                    <p class="text-[9px] text-slate-500">Delayed</p>
+                </div>
+                <div class="bg-slate-800 rounded p-3 text-center border border-slate-700">
+                    <p class="text-[9px] text-slate-400 mb-1">IMPACT</p>
+                    <p class="text-2xl font-bold text-green-500">48m</p>
+                    <p class="text-[9px] text-slate-500">Saved</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Event Timeline (8 cols) -->
+    <div class="col-span-8 flex flex-col gap-4">
+        <div class="bg-slate-900 rounded-lg border border-slate-800 p-5 flex-1 flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-slate-300 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    UPCOMING EVENTS & PREDICTED DISRUPTIONS
+                </h3>
+                <span class="text-xs text-slate-500" id="event-count">0 events</span>
+            </div>
+            
+            <div id="horizon-event-timeline" class="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2">
+                <!-- Events injected by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
