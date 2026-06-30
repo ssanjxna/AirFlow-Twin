@@ -41,7 +41,7 @@
                 </svg>
                 <div>
                     <p class="text-[8px] text-slate-400 uppercase font-semibold tracking-wider">High-Risk Flights</p>
-                    <p class="text-lg font-bold text-red-500 leading-none"><span id="high-risk-count">3</span> <span class="text-xs text-slate-500 font-normal">of 24</span></p>
+                    <p class="text-lg font-bold text-red-500 leading-none"><span id="high-risk-count">0</span> <span class="text-xs text-slate-500 font-normal">of <span id="total-flight-count">0</span></span></p>
                 </div>
             </div>
 
@@ -52,7 +52,7 @@
                 </svg>
                 <div>
                     <p class="text-[8px] text-slate-400 uppercase font-semibold tracking-wider">Predicted Delay</p>
-                    <p class="text-lg font-bold text-yellow-500 leading-none">1h 42m <span class="text-xs text-slate-500 font-normal">Total</span></p>
+                    <p class="text-lg font-bold text-yellow-500 leading-none"><span id="total-predicted-delay">0m</span> <span class="text-xs text-slate-500 font-normal">Total</span></p>
                 </div>
             </div>
 
@@ -63,7 +63,7 @@
                 </svg>
                 <div>
                     <p class="text-[8px] text-slate-400 uppercase font-semibold tracking-wider">Delay Prevented</p>
-                    <p class="text-lg font-bold text-green-500 leading-none" id="prevented-delay">48m <span class="text-xs text-slate-500 font-normal">Today</span></p>
+                    <p class="text-lg font-bold text-green-500 leading-none"><span id="prevented-delay">0m</span> <span class="text-xs text-slate-500 font-normal">Today</span></p>
                 </div>
             </div>
         </div>
@@ -100,6 +100,7 @@
 
     <!-- Load scripts in order -->
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/live-data.js') }}"></script>
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     <script src="{{ url_for('static', filename='js/flight-detail.js') }}"></script>
@@ -107,6 +108,13 @@
     <script src="{{ url_for('static', filename='js/event-detail.js') }}"></script>
     <script src="{{ url_for('static', filename='js/parking-detail.js') }}"></script>
     <script src="{{ url_for('static', filename='js/flights.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard-live.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/flight-detail-live.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/horizon-live.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/event-detail-live.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/parking-detail-live.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/flights-live.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/impact-live.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -10,6 +10,82 @@ class AirportDataLoader:
         self.maintenance_df = None
         self.passengers_df = None
 
+    def _to_int(self, value, default=0):
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return default
+
+    def _to_float(self, value, default=0.0):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _build_flight_payload(self, row):
+        # Column mapping based on the generated flights dataset.
+        flight_id = str(row.iloc[0])
+
+        # Skip header rows or invalid records.
+        if flight_id.isdigit() or len(flight_id) < 3 or flight_id == '0':
+            return None
+
+        airline_code = str(row.iloc[2])[:2] if pd.notna(row.iloc[2]) else 'UK'
+        origin = str(row.iloc[3]) if pd.notna(row.iloc[3]) else 'DEL'
+        destination = str(row.iloc[4]) if pd.notna(row.iloc[4]) else 'DXB'
+        delay = self._to_float(row.iloc[14], 0)
+        risk_score = min(100, int(abs(delay) / 30 * 100)) if delay else 25
+        terminal = str(row.iloc[16]) if pd.notna(row.iloc[16]) else 'T1'
+        gate = str(row.iloc[17]) if pd.notna(row.iloc[17]) else 'A1'
+        distance = self._to_int(row.iloc[19], 5000)
+        time_of_day = str(row.iloc[27]) if pd.notna(row.iloc[27]) else 'Morning'
+        day_of_week = str(row.iloc[28]) if pd.notna(row.iloc[28]) else 'Mon'
+        season = str(row.iloc[30]) if pd.notna(row.iloc[30]) else 'Summer'
+        flight_type = str(row.iloc[31]) if pd.notna(row.iloc[31]) else 'Passenger'
+        passenger_count = max(80, self._to_int(row.iloc[25], 180))
+        load_factor = max(0.1, min(1.0, self._to_float(row.iloc[26], 0.8)))
+        baggage_count = max(40, int(passenger_count * 0.65))
+        delay_reason = str(row.iloc[15]) if pd.notna(row.iloc[15]) else 'Operational'
+        status = str(row.iloc[13]) if pd.notna(row.iloc[13]) else 'Scheduled'
+        aircraft_type = str(row.iloc[9]) if pd.notna(row.iloc[9]) else 'A320'
+        registration = str(row.iloc[10]) if pd.notna(row.iloc[10]) else ''
+        maintenance_required = int(delay_reason.upper() in {'TECH', 'MTC', 'MAINTENANCE'})
+
+        try:
+            dep_time_str = str(row.iloc[5])
+            scheduled_departure = dep_time_str.split(' ')[1][:5] if ' ' in dep_time_str else '10:00'
+        except Exception:
+            scheduled_departure = '10:00'
+
+        lat, lng = self._get_gate_position(gate)
+
+        return {
+            "id": flight_id,
+            "lat": lat,
+            "lng": lng,
+            "status": status,
+            "risk": risk_score,
+            "gate": gate,
+            "terminal": terminal,
+            "origin": origin,
+            "destination": destination,
+            "airline_code": airline_code,
+            "distance": distance,
+            "time_of_day": time_of_day,
+            "day_of_week": day_of_week,
+            "season": season,
+            "flight_type": flight_type,
+            "scheduled_departure": scheduled_departure,
+            "aircraft_type": aircraft_type,
+            "registration": registration,
+            "delay_minutes": int(delay),
+            "delay_reason": delay_reason,
+            "passenger_count": passenger_count,
+            "load_factor": load_factor,
+            "baggage_count": baggage_count,
+            "maintenance_required": maintenance_required,
+        }
+        
     def _read_dataset(self, filename):
         dataset_path = os.path.join(self.data_dir, filename)
 
@@ -47,82 +123,30 @@ class AirportDataLoader:
         if self.flights_df is None:
             return self._get_mock_flights(limit)
         
-        sample_flights = self.flights_df.head(limit)
+        sample_flights = self.flights_df if limit is None else self.flights_df.head(limit)
         
         flights_list = []
         for idx, row in sample_flights.iterrows():
-            # Column mapping based on your data
             try:
-                flight_id = str(row.iloc[0])
-                # Skip header rows or invalid data
-                if flight_id.isdigit() or len(flight_id) < 3 or flight_id == '0':
-                    continue
-                    
-                airline_code = str(row.iloc[2])[:2] if pd.notna(row.iloc[2]) else 'UK'
-                origin = str(row.iloc[3]) if pd.notna(row.iloc[3]) else 'DEL'
-                destination = str(row.iloc[4]) if pd.notna(row.iloc[4]) else 'DXB'
-                
-                # Get delay (column 14)
-                try:
-                    delay = float(row.iloc[14]) if pd.notna(row.iloc[14]) else 0
-                    risk_score = min(100, int(abs(delay) / 30 * 100))
-                except:
-                    risk_score = 50
-                
-                # Get gate (column 17)
-                gate = str(row.iloc[17]) if pd.notna(row.iloc[17]) else 'A1'
-                
-                # Get distance (column 19)
-                try:
-                    distance = int(float(row.iloc[19])) if pd.notna(row.iloc[19]) else 5000
-                except:
-                    distance = 5000
-                
-                # Get time of day (column 27)
-                time_of_day = str(row.iloc[27]) if pd.notna(row.iloc[27]) else 'Morning'
-                
-                # Get day of week (column 28)
-                day_of_week = str(row.iloc[28]) if pd.notna(row.iloc[28]) else 'Mon'
-                
-                # Get scheduled departure time (column 5)
-                try:
-                    dep_time_str = str(row.iloc[5])
-                    scheduled_departure = dep_time_str.split(' ')[1][:5] if ' ' in dep_time_str else '10:00'
-                except:
-                    scheduled_departure = '10:00'
-                
-                # Get status (column 13)
-                status = str(row.iloc[13]) if pd.notna(row.iloc[13]) else 'Scheduled'
-                
-                # Get aircraft type (column 9)
-                aircraft_type = str(row.iloc[9]) if pd.notna(row.iloc[9]) else 'A320'
-                
-                # Calculate position based on gate
-                lat, lng = self._get_gate_position(gate)
-                
-                flight_data = {
-                    "id": flight_id,
-                    "lat": lat,
-                    "lng": lng,
-                    "status": status,
-                    "risk": risk_score,
-                    "gate": gate,
-                    "origin": origin,
-                    "destination": destination,
-                    "airline_code": airline_code,
-                    "distance": distance,
-                    "time_of_day": time_of_day,
-                    "day_of_week": day_of_week,
-                    "scheduled_departure": scheduled_departure,
-                    "aircraft_type": aircraft_type,
-                    "delay_minutes": int(delay) if 'delay' in locals() else 0
-                }
-                flights_list.append(flight_data)
+                flight_data = self._build_flight_payload(row)
+                if flight_data:
+                    flights_list.append(flight_data)
             except Exception as e:
                 print(f"Error processing row {idx}: {e}")
                 continue
         
         return flights_list
+
+    def get_flight_by_id(self, flight_id):
+        if self.flights_df is None:
+            return next((flight for flight in self._get_mock_flights(5) if flight["id"] == flight_id), None)
+
+        matches = self.flights_df[self.flights_df.iloc[:, 0].astype(str) == str(flight_id)]
+
+        if matches.empty:
+            return None
+
+        return self._build_flight_payload(matches.iloc[0])
     
     def _get_gate_position(self, gate):
         # Map gates to realistic airport positions (Dubai Airport coordinates)

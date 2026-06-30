@@ -2,9 +2,11 @@ import os
 from pathlib import Path
 import random
 from datetime import datetime
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 from flask_socketio import SocketIO
 from dotenv import load_dotenv
+from backend.airport_state_builder import build_airport_state
+from gemini_orchestrator import get_gemini_recommendation
 from loaders.backend_loader_delay_predictor import load_artifact as load_delay_artifact
 from loaders.backend_loader_delay_predictor import predict_delay
 from models.parking_predictor import ParkingCongestionPredictor
@@ -13,6 +15,7 @@ from utils.data_loader import AirportDataLoader
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 MODELS_DIR = BASE_DIR / "models"
+TRACKED_FLIGHT_LIMIT = 24
 
 
 def _log(message):
@@ -144,6 +147,224 @@ def _build_delay_artifact_features(flight):
     }
 
 
+def _safe_int(value, default=0):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _risk_level_from_percent(percent):
+    percent = float(percent)
+
+    if percent >= 80:
+        return "Critical"
+    if percent >= 50:
+        return "High"
+    if percent >= 25:
+        return "Medium"
+    return "Low"
+
+
+def _predict_delay_for_flight(flight):
+    base_risk = float(flight.get("risk", 50))
+
+    if delay_artifact is None:
+        risk_percent = round(base_risk, 2)
+        probability = round(min(0.99, max(0.05, risk_percent / 100)), 4)
+        predicted_delay_minutes = max(_safe_int(flight.get("delay_minutes"), 0), int(round(risk_percent * 0.5)))
+
+        return {
+            "prediction": "Delayed" if risk_percent >= 50 else "On-Time",
+            "delay_probability": probability,
+            "risk_probability": probability,
+            "risk_percent": risk_percent,
+            "risk_level": _risk_level_from_percent(risk_percent),
+            "predicted_delay_minutes": predicted_delay_minutes,
+            "model_version": "fallback_delay_estimator",
+        }
+
+    prediction = predict_delay(delay_artifact, _build_delay_artifact_features(flight))
+    risk_percent = round(float(prediction["risk_percent"]), 2)
+    predicted_delay_minutes = max(_safe_int(flight.get("delay_minutes"), 0), int(round(risk_percent * 0.5)))
+
+    return {
+        **prediction,
+        "predicted_delay_minutes": predicted_delay_minutes,
+    }
+
+
+def _match_count(df, column_index, value):
+    if df is None:
+        return 0
+
+    series = df.iloc[:, column_index].astype(str)
+    return int((series == str(value)).sum())
+
+
+def _build_operational_context(flight, delay_prediction):
+    flight_id = flight["id"]
+    gate = flight.get("gate", "A1")
+    delay_reason = str(flight.get("delay_reason", "Operational")).upper()
+
+    passenger_count = max(
+        _safe_int(flight.get("passenger_count"), 0),
+        _match_count(data_loader.passengers_df, 10, flight_id)
+    )
+    maintenance_count = _match_count(data_loader.maintenance_df, 2, flight_id)
+    gate_event_count = _match_count(data_loader.gate_events_df, 1, flight_id)
+    same_gate_load = _match_count(data_loader.gate_events_df, 2, gate)
+
+    departure_hour = _safe_int(str(flight.get("scheduled_departure", "10:00")).split(":")[0], 10)
+    is_peak = int((7 <= departure_hour <= 9) or (17 <= departure_hour <= 19))
+
+    maintenance_risk = min(100.0, 15 + maintenance_count * 18 + flight.get("maintenance_required", 0) * 25 + (20 if delay_reason in {"TECH", "MTC", "MAINTENANCE"} else 0))
+    passenger_risk = min(100.0, 18 + passenger_count * 0.18 + is_peak * 10 + max(delay_prediction["predicted_delay_minutes"] - 15, 0) * 0.2)
+    baggage_risk = min(100.0, 12 + _safe_int(flight.get("baggage_count"), 0) * 0.12 + abs(_safe_int(flight.get("delay_minutes"), 0)) * 0.35)
+    gate_risk = min(100.0, 10 + gate_event_count * 10 + same_gate_load * 2 + is_peak * 10)
+    security_risk = min(100.0, passenger_risk * 0.78 + is_peak * 8)
+    staffing_risk = min(100.0, gate_risk * 0.55 + maintenance_risk * 0.25 + is_peak * 10)
+    retail_risk = min(100.0, passenger_risk * 0.45 + (5 if "LONG" in str(flight.get("flight_type", "")).upper() else 0))
+
+    airport_state = build_airport_state(
+        flight_id=flight_id,
+        delay_output=delay_prediction,
+        maintenance_output={
+            "risk_probability": round(maintenance_risk / 100, 4),
+            "risk_percent": round(maintenance_risk, 2),
+            "risk_level": _risk_level_from_percent(maintenance_risk),
+        },
+        passenger_flow_output={
+            "risk_probability": round(passenger_risk / 100, 4),
+            "risk_percent": round(passenger_risk, 2),
+            "risk_level": _risk_level_from_percent(passenger_risk),
+        },
+        baggage_output={
+            "risk_probability": round(baggage_risk / 100, 4),
+            "risk_percent": round(baggage_risk, 2),
+            "risk_level": _risk_level_from_percent(baggage_risk),
+        },
+        gate_events_output={
+            "risk_probability": round(gate_risk / 100, 4),
+            "risk_percent": round(gate_risk, 2),
+            "risk_level": _risk_level_from_percent(gate_risk),
+        },
+        security_output={
+            "risk_probability": round(security_risk / 100, 4),
+            "risk_percent": round(security_risk, 2),
+            "risk_level": _risk_level_from_percent(security_risk),
+        },
+        staffing_output={
+            "risk_probability": round(staffing_risk / 100, 4),
+            "risk_percent": round(staffing_risk, 2),
+            "risk_level": _risk_level_from_percent(staffing_risk),
+        },
+        retail_output={
+            "risk_probability": round(retail_risk / 100, 4),
+            "risk_percent": round(retail_risk, 2),
+            "risk_level": _risk_level_from_percent(retail_risk),
+        },
+    )
+
+    context = {
+        "passenger_count": passenger_count,
+        "maintenance_count": maintenance_count,
+        "gate_event_count": gate_event_count,
+        "same_gate_load": same_gate_load,
+        "is_peak": is_peak,
+        "delay_reason": delay_reason,
+    }
+
+    return airport_state, context
+
+
+def _build_risk_cause(flight, delay_prediction, airport_state, context):
+    causes = []
+
+    if context["maintenance_count"] or flight.get("maintenance_required"):
+        causes.append(
+            f"Maintenance signals are elevated with {context['maintenance_count']} linked engineering record(s) and delay reason {flight.get('delay_reason', 'Operational')}."
+        )
+
+    if context["gate_event_count"] or context["same_gate_load"] >= 3:
+        causes.append(
+            f"Gate {flight.get('gate', 'A1')} is under pressure with {context['same_gate_load']} related gate events in the current operational window."
+        )
+
+    if context["passenger_count"] >= 160:
+        causes.append(
+            f"Passenger volume is high at about {context['passenger_count']} travelers, increasing turnaround and boarding coordination risk."
+        )
+
+    if delay_prediction["predicted_delay_minutes"] >= 30:
+        causes.append(
+            f"The delay model is projecting roughly {delay_prediction['predicted_delay_minutes']} minutes of disruption based on the current flight profile."
+        )
+
+    if not causes:
+        causes.append(
+            f"Operational risk is being driven by a combination of departure timing, gate activity, and current turnaround constraints."
+        )
+
+    return " ".join(causes[:3])
+
+
+def _serialize_recommendations(recommendation, airport_state):
+    actions = recommendation.get("recommended_actions", [])
+    expected_impact = recommendation.get("expected_impact", {})
+    current_risk = float(expected_impact.get("current_overall_risk_percent", airport_state["overall_risk"]["risk_percent"]))
+    target_risk = float(expected_impact.get("estimated_risk_after_actions_percent", current_risk))
+    total_risk_reduction = max(0.0, current_risk - target_risk)
+    total_delay_reduction = max(0, _safe_int(expected_impact.get("estimated_delay_reduction_minutes"), 0))
+    fallback_delay_share = max(4, int(round(total_delay_reduction / max(len(actions), 1)))) if total_delay_reduction else 6
+
+    cards = []
+    for index, action in enumerate(actions, start=1):
+        delay_reduction = max(1, _safe_int(action.get("expected_delay_reduction_minutes"), fallback_delay_share))
+        share = (delay_reduction / total_delay_reduction) if total_delay_reduction else (1 / max(len(actions), 1))
+        risk_reduction = max(5, int(round(total_risk_reduction * share))) if total_risk_reduction else 8
+        cards.append({
+            "id": f"rec-{index}",
+            "text": action.get("action", "Review operational mitigation"),
+            "impact": f"-{delay_reduction}m delay, -{risk_reduction}% risk",
+            "delay_reduction": delay_reduction,
+            "risk_reduction": risk_reduction,
+            "target_team": action.get("target_team", "Operations"),
+            "priority": action.get("priority", recommendation.get("overall_priority", "High")),
+            "validation_required": bool(action.get("validation_required", True)),
+        })
+
+    return cards
+
+
+def _enrich_flight(flight):
+    delay_prediction = _predict_delay_for_flight(flight)
+    enriched = {
+        **flight,
+        "risk": int(round(float(delay_prediction["risk_percent"]))),
+        "risk_level": delay_prediction.get("risk_level", _risk_level_from_percent(delay_prediction["risk_percent"])),
+        "confidence_percent": int(round(float(delay_prediction.get("delay_probability", delay_prediction.get("risk_probability", 0.5))) * 100)),
+        "predicted_delay_minutes": int(delay_prediction["predicted_delay_minutes"]),
+        "delay_prediction": delay_prediction.get("prediction", "Delayed"),
+    }
+    return enriched, delay_prediction
+
+
+def _summarize_flights(flights):
+    high_risk_count = sum(1 for flight in flights if flight["risk"] >= 80)
+    total_predicted_delay_minutes = sum(_safe_int(flight.get("predicted_delay_minutes"), 0) for flight in flights)
+    top_risky = sorted(flights, key=lambda flight: flight["risk"], reverse=True)[:3]
+    prevented_delay_minutes = sum(max(4, int(round(flight["predicted_delay_minutes"] * 0.3))) for flight in top_risky)
+
+    return {
+        "high_risk_count": high_risk_count,
+        "total_flights": len(flights),
+        "predicted_delay_minutes": total_predicted_delay_minutes,
+        "prevented_delay_minutes": prevented_delay_minutes,
+        "average_risk": round(sum(flight["risk"] for flight in flights) / max(len(flights), 1), 1),
+    }
+
+
 def get_ai_risk_score(flight):
     global delay_artifact
 
@@ -228,14 +449,48 @@ def calibrate():
 def get_flights():
     """Get current flight data with AI-calculated risk scores"""
     initialize_runtime()
-    flights = data_loader.get_current_flights(limit=15)
+    limit = request.args.get('limit', default=TRACKED_FLIGHT_LIMIT, type=int)
+    if limit is not None:
+        limit = max(1, min(limit, 100))
+
+    flights = data_loader.get_current_flights(limit=limit)
     resources = data_loader.get_resource_status()
-    
-    # Update risk scores with AI model
+    enriched_flights = []
+
     for flight in flights:
-        flight['risk'] = get_ai_risk_score(flight)
-    
-    return jsonify({"flights": flights, "resources": resources})
+        enriched, _ = _enrich_flight(flight)
+        enriched_flights.append(enriched)
+
+    return jsonify({
+        "flights": enriched_flights,
+        "resources": resources,
+        "summary": _summarize_flights(enriched_flights),
+    })
+
+
+@app.route('/api/flight/<flight_id>/detail')
+def get_flight_detail_data(flight_id):
+    initialize_runtime()
+
+    flight = data_loader.get_flight_by_id(flight_id)
+    if flight is None:
+        return jsonify({"error": f"Flight {flight_id} not found"}), 404
+
+    enriched_flight, delay_prediction = _enrich_flight(flight)
+    airport_state, context = _build_operational_context(enriched_flight, delay_prediction)
+    recommendation = get_gemini_recommendation(airport_state, api_key=os.getenv('GEMINI_API_KEY'))
+    risk_cause = _build_risk_cause(enriched_flight, delay_prediction, airport_state, context)
+    recommendation_cards = _serialize_recommendations(recommendation, airport_state)
+
+    return jsonify({
+        "flight": enriched_flight,
+        "airport_state": airport_state,
+        "recommendation": recommendation,
+        "risk_cause": risk_cause,
+        "recommendations": recommendation_cards,
+        "expected_impact": recommendation.get("expected_impact", {}),
+        "executive_summary": recommendation.get("executive_summary", ""),
+    })
 
 @app.route('/api/parking_status')
 def get_parking_status():
@@ -244,13 +499,16 @@ def get_parking_status():
     current_hour = datetime.now().hour
     current_day = datetime.now().strftime('%A')
     day_type = 'weekend' if current_day in ['Saturday', 'Sunday'] else 'weekday'
-    
-    # Simulate current conditions
-    current_occupancy_rate = 65
-    flights_arriving = 8
+    tracked_flights = data_loader.get_current_flights(limit=TRACKED_FLIGHT_LIMIT)
+    average_delay = round(
+        sum(_safe_int(flight.get('delay_minutes'), 0) for flight in tracked_flights) / max(len(tracked_flights), 1),
+        1,
+    )
+    flights_arriving = max(3, min(18, len(tracked_flights) // 3 + (2 if current_day in ['Friday', 'Saturday', 'Sunday'] else 0)))
     
     # Determine if peak hour
     is_peak = 1 if (7 <= current_hour <= 9) or (17 <= current_hour <= 19) else 0
+    current_occupancy_rate = max(28, min(96, int(32 + flights_arriving * 3 + average_delay * 0.6 + is_peak * 12)))
     
     prediction = parking_predictor.predict(
         hour=current_hour,
@@ -269,7 +527,9 @@ def get_parking_status():
         'color': prediction['color'],
         'recommendations': prediction['recommendations'],
         'flights_arriving': flights_arriving,
-        'is_peak_hour': bool(is_peak)
+        'is_peak_hour': bool(is_peak),
+        'estimated_delay_minutes': max(4, int(round(prediction['congestion_score'] * 0.22))),
+        'cause': f"{flights_arriving} arriving flights, average delay of {average_delay} minutes, and {current_occupancy_rate}% occupancy are driving current parking pressure.",
     })
 
 
