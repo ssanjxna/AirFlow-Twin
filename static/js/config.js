@@ -11,48 +11,6 @@ const hotspotPositions = {
     'PARKING': { x: 26, y: 71 }
 };
 
-const futureScenarios = {
-    0: { 
-        events: [], 
-        message: "Current state: Normal operations.", 
-        modifiers: {}, 
-        newFlights: [] 
-    },
-    30: {
-        events: [
-            { 
-                time: '+15m', 
-                text: '⚠️ Maintenance Crew Shift Change', 
-                type: 'warning', 
-                risk: 75, 
-                relatedFlightId: 'SG-1280', 
-                impact: 'Crew 2 leaving. SG-1280 maintenance incomplete.', 
-                recommendations: [
-                    { id: 'r1', text: 'Delay Crew 2 departure', impact: '-20m delay', riskReduction: 25, delayReduction: 20 }
-                ] 
-            },
-            { 
-                time: '+25m', 
-                text: '✈️ New Arrival: EK-9988 (A380)', 
-                type: 'critical', 
-                risk: 85, 
-                relatedFlightId: 'EK-9988', 
-                impact: 'Large aircraft arriving. Limited ground crew.', 
-                recommendations: [
-                    { id: 'r1', text: 'Pre-assign Crew B', impact: '-20m delay', riskReduction: 25, delayReduction: 20 }
-                ] 
-            }
-        ],
-        message: "Risk increasing due to crew shift change.",
-        modifiers: { 
-            'BA-6017': { risk: 75, delay: 35 }, 
-            'SG-1280': { risk: 85, delay: 45 } 
-        },
-        newFlights: [
-            { id: 'EK-9988', origin: 'DXB', destination: 'LHR', risk: 85, delay: 45 }
-        ]
-    }
-};
 
 const recommendationsDB = {
     'SG-1280': [

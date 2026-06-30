@@ -5,6 +5,7 @@
 let eventSelectedRecommendations = new Set();
 let eventCurrentRisk = 0;
 let eventIndex = null;
+let currentEvent = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('event-detail-title')) {
@@ -17,13 +18,24 @@ async function initEventDetailPage() {
     eventIndex = parseInt(pathParts[pathParts.length - 1]);
     
     if (isNaN(eventIndex)) return;
-    
-    const scenario = futureScenarios[0];
-    const event = scenario.events[eventIndex];
-    
-    if (event) {
-        renderEventDetailUI(event);
-    } else {
+
+    try {
+        const response = await fetch('/api/predict/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ time_horizon: 0 })
+        });
+        const data = await response.json();
+        const event = (data.events || [])[eventIndex] || null;
+        currentEvent = event;
+        
+        if (event) {
+            renderEventDetailUI(event);
+        } else {
+            document.getElementById('event-detail-title').textContent = 'Event Not Found';
+        }
+    } catch (error) {
+        console.error('Error loading event detail:', error);
         document.getElementById('event-detail-title').textContent = 'Event Not Found';
     }
 }
@@ -102,9 +114,8 @@ function selectAllEventRecommendations() {
 }
 
 function updateEventExpectedImpact() {
-    const scenario = futureScenarios[0];
-    const event = scenario.events[eventIndex];
-    const recs = event.recommendations || [];
+    const event = currentEvent;
+    const recs = event ? (event.recommendations || []) : [];
     
     let totalRiskReduction = 0, totalDelayReduction = 0;
     eventSelectedRecommendations.forEach(recId => {
@@ -138,9 +149,8 @@ async function applyEventRecommendations() {
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    const scenario = futureScenarios[0];
-    const event = scenario.events[eventIndex];
-    const recs = event.recommendations || [];
+    const event = currentEvent;
+    const recs = event ? (event.recommendations || []) : [];
     
     let totalRiskReduction = 0, totalDelayReduction = 0;
     eventSelectedRecommendations.forEach(recId => {

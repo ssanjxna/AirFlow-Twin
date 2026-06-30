@@ -4,6 +4,7 @@
 
 let currentFlights = [];
 let currentParkingData = null;
+let currentEvents = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('hotspots-container')) {
@@ -14,36 +15,54 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initMainDashboard() {
     await loadAndRenderData();
     await updateParkingStatus();
+    await updateOperationsSummary();
     setInterval(updateCurrentTime, 1000);
     setInterval(updateParkingStatus, 30000);
+    setInterval(updateOperationsSummary, 30000);
 }
 
 async function loadAndRenderData() {
     try {
+        // Fetch flights from API
         const response = await fetch('/api/flights');
-        const baseData = await response.json();
-        let flights = baseData.flights.filter(f => hotspotPositions[f.id]).slice(0, 5);
+        const data = await response.json();
+        let flights = data.flights.filter(f => hotspotPositions[f.id]).slice(0, 5);
         
-        const scenario = futureScenarios[0];
-        if (scenario.modifiers) {
-            flights = flights.map(f => scenario.modifiers[f.id] ? { ...f, ...scenario.modifiers[f.id] } : f);
-        }
-        if (scenario.newFlights) {
-            scenario.newFlights.forEach(newF => { 
-                if (!flights.find(f => f.id === newF.id)) flights.push(newF); 
-            });
+        // Fetch events from API (instead of hardcoded scenarios)
+        const eventsResponse = await fetch('/api/predict/events', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                time_horizon: currentTimeStep
+            })
+        }).catch(() => null);
+        
+        let eventsData = null;
+        if (eventsResponse) {
+            eventsData = await eventsResponse.json();
         }
         
         currentFlights = flights;
+        currentEvents = eventsData && eventsData.events ? eventsData.events : [];
         renderHotspots(flights);
         renderFlightRiskTableSummary(flights);
-        updateEventTimelineSummary(scenario);
+        
+        if (currentEvents.length) {
+            updateEventTimelineSummary({ events: currentEvents });
+        } else {
+            updateEventTimelineSummary({ events: [] });
+        }
+        
+        const messageEl = document.getElementById('prediction-message');
+        if (messageEl) {
+            messageEl.textContent = eventsData && eventsData.message ? eventsData.message : 'Current state: Normal operations.';
+        }
+        
         updateHighRiskCount(flights);
     } catch (error) { 
         console.error('Error loading data:', error); 
     }
 }
-
 function renderHotspots(flights) {
     const container = document.getElementById('hotspots-container');
     if (!container) return;
@@ -67,13 +86,15 @@ function renderHotspots(flights) {
 
     const parkingPos = hotspotPositions['PARKING'];
     if (parkingPos) {
+        const parkingRisk = currentParkingData ? Math.round(currentParkingData.congestion_score || 0) : 65;
+        const parkingStatus = currentParkingData ? currentParkingData.status || 'Medium' : 'Medium';
         const zone = document.createElement('div');
         zone.className = 'parking-zone';
         zone.style.left = parkingPos.x + '%';
         zone.style.top = parkingPos.y + '%';
         zone.style.width = '250px';
         zone.style.height = '180px';
-        zone.innerHTML = `<div class="parking-label">🚨 PARKING CONGESTION RISK</div>`;
+        zone.innerHTML = `<div class="parking-label">🚨 PARKING ${parkingStatus.toUpperCase()} • ${parkingRisk}%</div>`;
         
         zone.onclick = (e) => { 
             e.stopPropagation(); 
@@ -130,7 +151,29 @@ async function updateParkingStatus() {
     try {
         const response = await fetch('/api/parking_status');
         currentParkingData = await response.json();
+        renderHotspots(currentFlights);
     } catch (error) { 
         console.error('Error fetching parking status:', error); 
+    }
+}
+
+async function updateOperationsSummary() {
+    try {
+        const response = await fetch('/api/operations-summary');
+        const data = await response.json();
+        const highRiskEl = document.getElementById('high-risk-count');
+        if (highRiskEl) {
+            highRiskEl.textContent = data.high_risk_count ?? 0;
+        }
+        const predictedDelayEl = document.getElementById('predicted-delay-value');
+        if (predictedDelayEl) {
+            predictedDelayEl.textContent = `${data.predicted_delay_total_minutes ?? 0}m`;
+        }
+        const preventedDelayEl = document.getElementById('prevented-delay');
+        if (preventedDelayEl) {
+            preventedDelayEl.textContent = `${data.prevented_delay_minutes ?? 0}m`;
+        }
+    } catch (error) {
+        console.error('Error fetching operations summary:', error);
     }
 }

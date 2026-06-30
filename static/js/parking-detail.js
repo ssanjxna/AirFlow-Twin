@@ -4,6 +4,7 @@
 
 let parkingSelectedRecommendations = new Set();
 let parkingCurrentRisk = 0;
+let parkingRecommendations = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('parking-badge')) {
@@ -17,6 +18,7 @@ async function initParkingDetailPage() {
         const data = await response.json();
         
         parkingCurrentRisk = Math.round(data.congestion_score);
+        parkingRecommendations = data.recommendations || [];
         
         document.getElementById('parking-risk-score').textContent = parkingCurrentRisk;
         document.getElementById('parking-occupancy').textContent = Math.round(data.current_occupancy_rate) + '%';
@@ -28,7 +30,7 @@ async function initParkingDetailPage() {
         badge.className = `px-3 py-1 ${getBadgeClass(parkingCurrentRisk)} text-white text-xs font-bold rounded uppercase`;
         
         document.getElementById('parking-circle').setAttribute('stroke', parkingCurrentRisk >= 80 ? '#ef4444' : (parkingCurrentRisk >= 50 ? '#f97316' : '#22c55e'));
-        document.getElementById('parking-cause').textContent = `Passenger parking congestion at ${parkingCurrentRisk}%. Heavy vehicle traffic causing bottlenecks.`;
+        document.getElementById('parking-cause').textContent = data.model_prediction ? `Parking congestion is ${data.status.toLowerCase()} with ${Math.round(data.current_occupancy_rate)}% occupancy and ${Math.round(data.congestion_score)}% model risk.` : `Passenger parking congestion at ${parkingCurrentRisk}%. Heavy vehicle traffic causing bottlenecks.`;
         
         renderParkingRecommendations();
         updateParkingApplyButton();
@@ -42,7 +44,7 @@ function renderParkingRecommendations() {
     container.innerHTML = '';
     parkingSelectedRecommendations.clear();
     
-    const recs = recommendationsDB['PARKING'] || [];
+    const recs = parkingRecommendations.length ? parkingRecommendations : (recommendationsDB['PARKING'] || []);
     
     recs.forEach(rec => {
         const card = document.createElement('div');
@@ -87,7 +89,7 @@ function selectAllParkingRecommendations() {
 }
 
 function updateParkingExpectedImpact() {
-    const recs = recommendationsDB['PARKING'] || [];
+    const recs = parkingRecommendations.length ? parkingRecommendations : (recommendationsDB['PARKING'] || []);
     let totalRiskReduction = 0;
     
     parkingSelectedRecommendations.forEach(recId => {
@@ -120,7 +122,7 @@ async function applyParkingRecommendations() {
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    const recs = recommendationsDB['PARKING'] || [];
+    const recs = parkingRecommendations.length ? parkingRecommendations : (recommendationsDB['PARKING'] || []);
     let totalRiskReduction = 0;
     
     parkingSelectedRecommendations.forEach(recId => {
