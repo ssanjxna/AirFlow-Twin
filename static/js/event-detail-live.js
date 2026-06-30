@@ -40,7 +40,8 @@ function renderEventDetailLiveUI(event) {
     badge.className = `px-3 py-1 ${getBadgeClass(event.risk)} text-white text-xs font-bold rounded uppercase`;
 
     document.getElementById('event-detail-risk').textContent = event.risk;
-    document.getElementById('event-detail-circle').setAttribute('stroke', event.risk >= 80 ? '#ef4444' : (event.risk >= 50 ? '#f97316' : '#22c55e'));
+    document.getElementById('event-detail-circle').setAttribute('stroke', getRiskStrokeColor(event.risk));
+    updateCircularProgress('event-detail-circle', event.risk);
 
     renderEventLiveRecommendations(event.recommendations || []);
     updateEventApplyButton();

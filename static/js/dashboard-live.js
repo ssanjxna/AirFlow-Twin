@@ -21,12 +21,11 @@ async function initDashboardLive() {
 
 async function loadDashboardLiveData() {
     try {
-        const [flightsResponse, parkingResponse] = await Promise.all([
-            fetch('/api/flights?limit=24'),
-            fetch('/api/parking_status'),
+        const [flightsData, parkingData] = await Promise.all([
+            fetchLiveJson('/api/flights?limit=24'),
+            fetchLiveJson('/api/parking_status'),
         ]);
-        const flightsData = await flightsResponse.json();
-        dashboardLiveParking = await parkingResponse.json();
+        dashboardLiveParking = parkingData;
         applyHeaderSummary(flightsData.summary);
 
         const allFlights = [...(flightsData.flights || [])].sort((a, b) => b.risk - a.risk);

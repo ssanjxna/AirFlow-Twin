@@ -20,13 +20,12 @@ async function initHorizonLivePage() {
 
 async function loadHorizonLiveData() {
     try {
-        const [flightsResponse, parkingResponse] = await Promise.all([
-            fetch('/api/flights?limit=24'),
-            fetch('/api/parking_status'),
+        const [flightsData, parkingData] = await Promise.all([
+            fetchLiveJson('/api/flights?limit=24'),
+            fetchLiveJson('/api/parking_status'),
         ]);
-        const flightsData = await flightsResponse.json();
         horizonLiveFlights = flightsData.flights || [];
-        horizonLiveParking = await parkingResponse.json();
+        horizonLiveParking = parkingData;
         horizonLiveEvents = buildHorizonEvents(horizonLiveFlights, horizonLiveParking);
         rememberHorizonEvents(horizonLiveEvents);
         applyHeaderSummary(flightsData.summary);

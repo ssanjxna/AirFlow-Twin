@@ -12,8 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function initFlightsLivePage() {
     try {
-        const response = await fetch('/api/flights?limit=50');
-        const data = await response.json();
+        const data = await fetchLiveJson('/api/flights?limit=24');
         liveFlightsPageData = data.flights || [];
         applyHeaderSummary(data.summary);
         renderLiveFlightsTable(liveFlightsPageData);

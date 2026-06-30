@@ -10,8 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadImpactLiveMetrics() {
     try {
-        const response = await fetch('/api/impact_summary');
-        const data = await response.json();
+        const data = await fetchLiveJson('/api/impact_summary');
 
         const beforeDelayed = data.before_delayed || 0;
         const beforeTotal = data.before_total_delay || 0;

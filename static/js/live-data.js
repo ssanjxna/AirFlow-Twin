@@ -36,10 +36,48 @@ function applyHeaderSummary(summary) {
     if (preventedDelayEl) preventedDelayEl.textContent = formatMinutes(summary.prevented_delay_minutes);
 }
 
+function getRiskStrokeColor(risk) {
+    if (risk >= 80) return '#ef4444';
+    if (risk >= 50) return '#f97316';
+    return '#22c55e';
+}
+
+function updateCircularProgress(circleId, percent) {
+    const circle = document.getElementById(circleId);
+    if (!circle) return;
+
+    const clampedPercent = clampValue(Number(percent) || 0, 0, 100);
+    const dashArray = String(circle.getAttribute('stroke-dasharray') || '251');
+    const baseLength = Number(dashArray.split(/[ ,]/)[0]) || 251;
+    const circleOffset = Math.max(0, baseLength - (baseLength * clampedPercent / 100));
+
+    circle.setAttribute('stroke-dashoffset', String(circleOffset));
+}
+
+async function fetchLiveJson(url, options = {}) {
+    const mergedOptions = {
+        cache: 'no-store',
+        ...options,
+        headers: {
+            'Cache-Control': 'no-cache',
+            Pragma: 'no-cache',
+            ...(options.headers || {}),
+        },
+    };
+
+    const response = await fetch(url, mergedOptions);
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data?.error || `Request failed for ${url}`);
+    }
+
+    return data;
+}
+
 async function refreshShellMetrics() {
     try {
-        const response = await fetch('/api/flights?limit=24');
-        const data = await response.json();
+        const data = await fetchLiveJson('/api/flights?limit=24');
         applyHeaderSummary(data.summary);
     } catch (error) {
         console.error('Error refreshing header metrics:', error);
@@ -161,9 +199,39 @@ function loadSelectedHorizonEvent() {
     }
 }
 
+function refreshActiveLivePage() {
+    if (document.getElementById('detail-flight-id') && typeof initFlightDetailDbPage === 'function') {
+        initFlightDetailDbPage();
+    }
+    if (document.getElementById('parking-badge') && typeof initParkingDetailLivePage === 'function') {
+        initParkingDetailLivePage();
+    }
+    if (document.getElementById('horizon-event-timeline') && typeof loadHorizonLiveData === 'function') {
+        loadHorizonLiveData();
+    }
+    if (document.getElementById('hotspots-container') && typeof loadDashboardLiveData === 'function') {
+        loadDashboardLiveData();
+    }
+    if (document.getElementById('all-flights-table-body') && typeof initFlightsLivePage === 'function') {
+        initFlightsLivePage();
+    }
+    if ((document.getElementById('impact-before-delayed') || document.getElementById('horizon-before-delayed')) && typeof loadImpactLiveMetrics === 'function') {
+        loadImpactLiveMetrics();
+    }
+    if (document.getElementById('audit-list') && typeof initAuditLivePage === 'function') {
+        initAuditLivePage();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     refreshShellMetrics();
     updateCurrentTime();
     setInterval(updateCurrentTime, 1000);
     setInterval(refreshShellMetrics, 30000);
+});
+
+window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    refreshShellMetrics();
+    refreshActiveLivePage();
 });
