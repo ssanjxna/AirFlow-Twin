@@ -32,6 +32,7 @@ def reset_tables(cursor):
         "user_actions",
         "system_events",
         "model_runs",
+        "users",
     ]
 
     for table in tables:
@@ -213,5 +214,15 @@ def create_tables(cursor):
         output_summary TEXT,
         status TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE users (
+        user_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        department TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)

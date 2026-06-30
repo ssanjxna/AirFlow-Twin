@@ -279,3 +279,11 @@ def seed_data(cursor, num_flights=300):
             random.choice(["INFO", "WARNING", "ERROR"])
         ))
 
+    cursor.execute("""
+        INSERT INTO users VALUES
+        ('admin','Administrator','admin','IT',CURRENT_TIMESTAMP),
+        ('demo_user','Demo User','operator','Operations',CURRENT_TIMESTAMP),
+        ('operator_1','Operator 1','operator','Operations',CURRENT_TIMESTAMP),
+        ('operator_2','Operator 2','operator','Operations',CURRENT_TIMESTAMP),
+        ('system','System','system','AI',CURRENT_TIMESTAMP)
+    """)
