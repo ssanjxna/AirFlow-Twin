@@ -628,6 +628,95 @@ def get_parking_status():
     })
 
 
+@app.route('/api/simulator/add-flight', methods=['POST'])
+def add_flight():
+    """Add a new flight to the database for simulation"""
+    initialize_runtime()
+    
+    payload = request.get_json(silent=True) or {}
+    
+    # Required fields
+    flight_id = payload.get('flight_id') or payload.get('id')
+    flight_number = payload.get('flight_number', f"FL{random.randint(100, 9999)}")
+    airline = payload.get('airline', 'Unknown')
+    origin = payload.get('origin', 'DEL')
+    destination = payload.get('destination', 'DXB')
+    status = payload.get('status', 'scheduled')
+    gate_id = payload.get('gate', 'G1')
+    aircraft_type = payload.get('aircraft_type', 'Boeing 777')
+    delay_minutes = int(payload.get('delay_minutes', 0))
+    
+    # Timestamps
+    scheduled_departure = payload.get('scheduled_departure') or datetime.now().isoformat()
+    scheduled_arrival = payload.get('scheduled_arrival') or (datetime.now() + timedelta(hours=4)).isoformat()
+    
+    if not flight_id:
+        return jsonify({"error": "flight_id is required"}), 400
+    
+    try:
+        from database.db import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Check if flight already exists
+        cursor.execute("SELECT flight_id FROM flights WHERE flight_id = ?", (flight_id,))
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Update existing flight
+            cursor.execute("""
+                UPDATE flights 
+                SET flight_number=?, airline=?, origin=?, destination=?, 
+                    scheduled_departure=?, scheduled_arrival=?, gate_id=?, 
+                    status=?, aircraft_type=?, delay_minutes=?
+                WHERE flight_id=?
+            """, (
+                flight_number, airline, origin, destination,
+                scheduled_departure, scheduled_arrival, gate_id, 
+                status, aircraft_type, delay_minutes, flight_id
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({
+                "success": True,
+                "message": f"Flight {flight_id} updated",
+                "flight": {
+                    "id": flight_id,
+                    "flight_number": flight_number,
+                    "status": status
+                }
+            }), 200
+        else:
+            # Insert new flight
+            cursor.execute("""
+                INSERT INTO flights 
+                (flight_id, flight_number, airline, origin, destination, 
+                 scheduled_departure, scheduled_arrival, gate_id, status, aircraft_type, delay_minutes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                flight_id, flight_number, airline, origin, destination,
+                scheduled_departure, scheduled_arrival, gate_id, status, aircraft_type, delay_minutes
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({
+                "success": True,
+                "message": f"Flight {flight_id} added successfully",
+                "flight": {
+                    "id": flight_id,
+                    "flight_number": flight_number,
+                    "airline": airline,
+                    "origin": origin,
+                    "destination": destination,
+                    "gate": gate_id,
+                    "status": status,
+                    "delay_minutes": delay_minutes
+                }
+            }), 201
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # ============================================================================
 # SOCKET.IO REAL-TIME SIMULATION
