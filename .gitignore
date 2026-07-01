@@ -47,7 +47,6 @@ models/*.h5
 models/*.joblib
 
 # Data
-data/*.csv
 data/*.db
 *.sqlite3
 .codex_tmp/
